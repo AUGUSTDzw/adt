@@ -56,6 +56,95 @@ npm run build
 npm start
 ```
 
+## CLI Tools (opencode, etc.)
+
+When a CLI tool spawns this MCP server, SSO login works the same way. Configure
+the environment variables when starting the server:
+
+### Option 1: Pre-provided token (recommended for automation)
+
+```bash
+# 1. Obtain a token once using mcp-auth CLI
+npm install -g @mcp-abap-adt/auth-broker-cli
+mcp-auth --service-key ./service-key.json --output ./mcp.env --type abap
+
+# 2. CLI tool starts the server with the token
+export SAP_ENABLED_CONNECTORS=adt
+export SAP_ADT_BASEURL=https://<your-abap-system>
+export SAP_ADT_AUTHMODE=jwt
+export SAP_ADT_TOKEN=$(grep SAP_JWT_TOKEN mcp.env | cut -d= -f2)
+npm start
+```
+
+### Option 2: Browser login (interactive SSO)
+
+```bash
+# CLI tool starts the server with OAuth2 config
+export SAP_ENABLED_CONNECTORS=adt
+export SAP_ADT_BASEURL=https://<your-abap-system>
+export SAP_ADT_AUTHMODE=jwt
+export SAP_ADT_UAA_URL=https://<your-uaa-url>
+export SAP_ADT_UAA_CLIENT_ID=<client-id>
+export SAP_ADT_UAA_CLIENT_SECRET=<client-secret>
+npm start
+```
+
+**Flow:** Server starts → detects no token → opens browser for SAP login → receives
+authorization code via localhost:61001 callback → exchanges for JWT → authenticates.
+
+### opencode configuration example
+
+```json
+{
+  "mcpServers": {
+    "sap": {
+      "command": "npm",
+      "args": ["start"],
+      "env": {
+        "SAP_ENABLED_CONNECTORS": "adt",
+        "SAP_ADT_BASEURL": "https://<your-abap-system>",
+        "SAP_ADT_AUTHMODE": "jwt",
+        "SAP_ADT_UAA_URL": "https://<uaa-url>",
+        "SAP_ADT_UAA_CLIENT_ID": "<client-id>",
+        "SAP_ADT_UAA_CLIENT_SECRET": "<client-secret>"
+      }
+    }
+  }
+}
+```
+
+Or with pre-provided token:
+
+```json
+{
+  "mcpServers": {
+    "sap": {
+      "command": "npm",
+      "args": ["start"],
+      "env": {
+        "SAP_ENABLED_CONNECTORS": "adt",
+        "SAP_ADT_BASEURL": "https://<your-abap-system>",
+        "SAP_ADT_AUTHMODE": "jwt",
+        "SAP_ADT_TOKEN": "<your-jwt-token>"
+      }
+    }
+  }
+}
+```
+
+**Configuration reference:**
+
+| Environment variable | Description | Required |
+|---------------------|-------------|----------|
+| `SAP_ADT_AUTHMODE` | `jwt` enables SSO | Yes |
+| `SAP_ADT_TOKEN` | Pre-provided JWT token | Option 1 |
+| `SAP_ADT_UAA_URL` | UAA server URL | Option 2 |
+| `SAP_ADT_UAA_CLIENT_ID` | OAuth2 client ID | Option 2 |
+| `SAP_ADT_UAA_CLIENT_SECRET` | OAuth2 client secret | Option 2 |
+| `SAP_ADT_AUTH_BROKER_PORT` | Callback port (default: 61001) | Optional |
+
+---
+
 ## Tool inventory
 
 All tools are registered under the `sap.<id>.<name>` namespace by the registry. A

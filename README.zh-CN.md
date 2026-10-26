@@ -104,28 +104,90 @@ npm start
 
 ### 在 MCP 客户端中使用
 
-Claude Desktop / Cursor / 其他 MCP 客户端的配置示例（stdio）：
+当 CLI 工具（如 opencode、Claude Desktop、Cursor 等）拉起此 MCP 服务器时，SSO 登录流程相同。在启动服务器时配置环境变量即可：
+
+#### 方式 1：预配置令牌（推荐用于自动化）
+
+```bash
+# 1. 使用 mcp-auth CLI 获取令牌
+npm install -g @mcp-abap-adt/auth-broker-cli
+mcp-auth --service-key ./service-key.json --output ./mcp.env --type abap
+
+# 2. CLI 工具启动服务器时传入令牌
+export SAP_ENABLED_CONNECTORS=adt
+export SAP_ADT_BASEURL=https://<your-abap-system>
+export SAP_ADT_AUTHMODE=jwt
+export SAP_ADT_TOKEN=$(grep SAP_JWT_TOKEN mcp.env | cut -d= -f2)
+npm start
+```
+
+#### 方式 2：浏览器登录（交互式 SSO）
+
+```bash
+# CLI 工具启动服务器时配置 OAuth2 参数
+export SAP_ENABLED_CONNECTORS=adt
+export SAP_ADT_BASEURL=https://<your-abap-system>
+export SAP_ADT_AUTHMODE=jwt
+export SAP_ADT_UAA_URL=https://<your-uaa-url>
+export SAP_ADT_UAA_CLIENT_ID=<client-id>
+export SAP_ADT_UAA_CLIENT_SECRET=<client-secret>
+npm start
+```
+
+**流程：** 服务器启动 → 检测到无令牌 → 打开浏览器登录 SAP → 通过 localhost:61001 回调接收授权码 → 交换为 JWT → 认证
+
+#### opencode 配置示例
 
 ```json
 {
   "mcpServers": {
     "sap": {
-      "command": "npx",
-      "args": ["tsx", "src/index.ts"],
-      "cwd": "/path/to/sap-mcp-unified",
+      "command": "npm",
+      "args": ["start"],
       "env": {
-        "SAP_ENABLED_CONNECTORS": "sac,adt",
-        "SAP_SAC_URL": "https://my-tenant.sapanalytics.cloud",
-        "SAP_SAC_TOKEN": "...",
-        "SAP_ADT_BASEURL": "https://abap.example.com",
-        "SAP_ADT_AUTHMODE": "basic",
-        "SAP_ADT_USER": "DEVELOPER",
-        "SAP_ADT_PASS": "..."
+        "SAP_ENABLED_CONNECTORS": "adt",
+        "SAP_ADT_BASEURL": "https://<your-abap-system>",
+        "SAP_ADT_AUTHMODE": "jwt",
+        "SAP_ADT_UAA_URL": "https://<uaa-url>",
+        "SAP_ADT_UAA_CLIENT_ID": "<client-id>",
+        "SAP_ADT_UAA_CLIENT_SECRET": "<client-secret>"
       }
     }
   }
 }
 ```
+
+或使用预配置令牌：
+
+```json
+{
+  "mcpServers": {
+    "sap": {
+      "command": "npm",
+      "args": ["start"],
+      "env": {
+        "SAP_ENABLED_CONNECTORS": "adt",
+        "SAP_ADT_BASEURL": "https://<your-abap-system>",
+        "SAP_ADT_AUTHMODE": "jwt",
+        "SAP_ADT_TOKEN": "<your-jwt-token>"
+      }
+    }
+  }
+}
+```
+
+#### 配置参考
+
+| 环境变量 | 说明 | 必需 |
+|---------|------|------|
+| `SAP_ADT_AUTHMODE` | `jwt` 启用 SSO | 是 |
+| `SAP_ADT_TOKEN` | 预配置 JWT 令牌 | 方式 1 |
+| `SAP_ADT_UAA_URL` | UAA 服务器 URL | 方式 2 |
+| `SAP_ADT_UAA_CLIENT_ID` | OAuth2 客户端 ID | 方式 2 |
+| `SAP_ADT_UAA_CLIENT_SECRET` | OAuth2 客户端密钥 | 方式 2 |
+| `SAP_ADT_AUTH_BROKER_PORT` | 回调端口（默认：61001） | 可选 |
+
+---
 
 ## 工具清单
 
