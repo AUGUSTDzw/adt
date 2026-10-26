@@ -110,12 +110,9 @@ refactoring, services, etc.). Each auto-generated tool accepts positional
 | `jwt` | `SAP_ADT_TOKEN` | Pre-provided JWT bearer token (SSO) |
 
 **JWT/SSO:** For SAP BTP ABAP Cloud or scenarios requiring interactive login, use
-`SAP_ADT_AUTHMODE=jwt` with `SAP_ADT_TOKEN=<token>`. The token can be obtained via:
-- `mcp-auth` CLI tool (from `@mcp-abap-adt/auth-broker-cli` package)
-- SAP Business Application Studio
-- Any OAuth2 authorization_code flow
+`SAP_ADT_AUTHMODE=jwt`. Two options:
 
-**Setup:**
+**Option 1: Pre-provided token (recommended for scripts)**
 ```bash
 # 1. Install mcp-auth CLI
 npm install -g @mcp-abap-adt/auth-broker-cli
@@ -130,13 +127,29 @@ mcp-auth --service-key ./service-key.json --output ./mcp.env --type abap
 # 4. Configure the MCP server
 export SAP_ADT_AUTHMODE=jwt
 export SAP_ADT_TOKEN=$(grep SAP_JWT_TOKEN mcp.env | cut -d= -f2)
+```
 
-# 5. Start the server
+**Option 2: Browser login (interactive SSO)**
+```bash
+# Configure for browser login
+export SAP_ADT_AUTHMODE=jwt
+export SAP_ADT_UAA_URL=https://<your-uaa-url>
+export SAP_ADT_UAA_CLIENT_ID=<client-id>
+export SAP_ADT_UAA_CLIENT_SECRET=<client-secret>
+
+# Start the server - it will open a browser for login
+# The callback server listens on port 61001 (configurable via SAP_ADT_AUTH_BROKER_PORT)
 npm start
 ```
 
-The `@mcp-abap-adt/auth-broker` package is included for advanced SSO scenarios
-with browser-based login and token refresh.
+When no token is provided, the server automatically:
+1. Starts a local callback server on port 61001
+2. Opens a browser to the SAP login page
+3. Receives the authorization code via callback
+4. Exchanges it for a JWT token
+5. Uses the token to authenticate ADT requests
+
+The `@mcp-abap-adt/auth-broker` package handles the OAuth2 authorization_code flow.
 
 **Hand-crafted tools (49):**
 
