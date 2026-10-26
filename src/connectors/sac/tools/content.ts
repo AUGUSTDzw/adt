@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import type { SacClient } from '../sac-client.js';
 import type { ToolRegistration } from '../../../core/types.js';
-import { toolSuccess, toolError, buildODataQuery, requireAlteration } from './_helpers.js';
+import { toolSuccess, toolError, buildODataQuery, requireAlteration, pickOData } from './_helpers.js';
 
 export function contentTool(client: SacClient): ToolRegistration {
   return {
@@ -101,10 +101,7 @@ export function contentTool(client: SacClient): ToolRegistration {
           }
           case 'resources_list': {
             const top = (a.$top as number | undefined) ?? 20;
-            const queryArgs = { ...a, $top: top };
-            const qs = buildODataQuery(
-              queryArgs as Record<string, string | number | boolean | undefined>,
-            );
+            const qs = buildODataQuery({ ...pickOData(a), $top: top });
             const result = await client.sacGet(`/api/v1/Resources${qs}`);
             if (Array.isArray(result) && result.length > top) {
               return toolSuccess(result.slice(0, top));
@@ -141,10 +138,7 @@ export function contentTool(client: SacClient): ToolRegistration {
           }
           case 'repositories_list': {
             const top = (a.$top as number | undefined) ?? 20;
-            const queryArgs = { ...a, $top: top };
-            const qs = buildODataQuery(
-              queryArgs as Record<string, string | number | boolean | undefined>,
-            );
+            const qs = buildODataQuery({ ...pickOData(a), $top: top });
             const result = await client.sacGet(`/api/v1/Repositories${qs}`);
             if (Array.isArray(result) && result.length > top) {
               return toolSuccess(result.slice(0, top));

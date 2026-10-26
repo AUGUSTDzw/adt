@@ -13,7 +13,7 @@
 import { z } from 'zod';
 import type { SacClient } from '../sac-client.js';
 import type { ToolRegistration } from '../../../core/types.js';
-import { toolSuccess, toolError, buildODataQuery, requireAlteration } from './_helpers.js';
+import { toolSuccess, toolError, buildODataQuery, requireAlteration, pickOData } from './_helpers.js';
 
 const ADMIN = '/api/v1/dataexport/administration';
 const PROVIDERS = '/api/v1/dataexport/providers';
@@ -176,16 +176,7 @@ export function dataExportTool(client: SacClient): ToolRegistration {
             return toolSuccess(result);
           }
           case 'get_fact_data': {
-            const odata = {
-              $top: a.$top,
-              $skip: a.$skip,
-              $filter: a.$filter,
-              $select: a.$select,
-              $orderby: a.$orderby,
-              $count: a.$count,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(pickOData(a));
             const params = new URLSearchParams(qs ? qs.slice(1) : '');
             if (a.deltaid) params.set('deltaid', String(a.deltaid));
             if (a.externalid) params.set('externalid', String(a.externalid));
@@ -200,16 +191,7 @@ export function dataExportTool(client: SacClient): ToolRegistration {
             return toolSuccess(result);
           }
           case 'get_fact_data_aggregation': {
-            const odata = {
-              $select: a.$select,
-              $filter: a.$filter,
-              $top: a.$top,
-              $skip: a.$skip,
-              $orderby: a.$orderby,
-              $count: a.$count,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(pickOData(a));
             const params = new URLSearchParams(qs ? qs.slice(1) : '');
             if (a.deltaid) params.set('deltaid', String(a.deltaid));
             const queryString = params.toString() ? `?${params.toString()}` : '';
@@ -222,14 +204,9 @@ export function dataExportTool(client: SacClient): ToolRegistration {
             return toolSuccess(result);
           }
           case 'get_fact_data_difference': {
-            const odata = {
-              $filter: a.$filter,
-              $select: a.$select,
-              $top: a.$top,
-              $skip: a.$skip,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(
+              pickOData(a, ['$filter', '$select', '$top', '$skip', '$format']),
+            );
             const params = new URLSearchParams(qs ? qs.slice(1) : '');
             if (a.deltaid) params.set('deltaid', String(a.deltaid));
             const queryString = params.toString() ? `?${params.toString()}` : '';
@@ -242,62 +219,32 @@ export function dataExportTool(client: SacClient): ToolRegistration {
             return toolSuccess(result);
           }
           case 'get_master_data': {
-            const odata = {
-              $top: a.$top,
-              $skip: a.$skip,
-              $filter: a.$filter,
-              $select: a.$select,
-              $orderby: a.$orderby,
-              $count: a.$count,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(pickOData(a));
             const result = await client.sacGet(
               `${PROVIDERS}/${a.namespace}/${a.provider}/MasterData${qs}`,
             );
             return toolSuccess(result);
           }
           case 'get_dimension_master': {
-            const odata = {
-              $top: a.$top,
-              $skip: a.$skip,
-              $filter: a.$filter,
-              $select: a.$select,
-              $orderby: a.$orderby,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(
+              pickOData(a, ['$top', '$skip', '$filter', '$select', '$orderby', '$format']),
+            );
             const result = await client.sacGet(
               `${PROVIDERS}/${a.namespace}/${a.provider}/${a.dimension}Master${qs}`,
             );
             return toolSuccess(result);
           }
           case 'get_dimension_master_hierarchy': {
-            const odata = {
-              $top: a.$top,
-              $skip: a.$skip,
-              $filter: a.$filter,
-              $select: a.$select,
-              $orderby: a.$orderby,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(
+              pickOData(a, ['$top', '$skip', '$filter', '$select', '$orderby', '$format']),
+            );
             const result = await client.sacGet(
               `${PROVIDERS}/${a.namespace}/${a.provider}/${a.dimension}MasterWithHierarchy${qs}`,
             );
             return toolSuccess(result);
           }
           case 'get_audit_data': {
-            const odata = {
-              $top: a.$top,
-              $skip: a.$skip,
-              $filter: a.$filter,
-              $select: a.$select,
-              $orderby: a.$orderby,
-              $count: a.$count,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(pickOData(a));
             const result = await client.sacGet(
               `${PROVIDERS}/${a.namespace}/${a.provider}/AuditData${qs}`,
             );
@@ -305,14 +252,9 @@ export function dataExportTool(client: SacClient): ToolRegistration {
           }
           case 'get_currency_table': {
             const ns = (a.namespace as string | undefined) ?? 'sac_currency_tables';
-            const odata = {
-              $top: a.$top,
-              $skip: a.$skip,
-              $filter: a.$filter,
-              $select: a.$select,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(
+              pickOData(a, ['$top', '$skip', '$filter', '$select', '$format']),
+            );
             const result = await client.sacGet(
               `${PROVIDERS}/${ns}/${a.provider}/CurrencyTable${qs}`,
             );
@@ -320,45 +262,25 @@ export function dataExportTool(client: SacClient): ToolRegistration {
           }
           case 'get_conversion_rates': {
             const ns = (a.namespace as string | undefined) ?? 'sac_unit_conversion';
-            const odata = {
-              $top: a.$top,
-              $skip: a.$skip,
-              $filter: a.$filter,
-              $select: a.$select,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(
+              pickOData(a, ['$top', '$skip', '$filter', '$select', '$format']),
+            );
             const result = await client.sacGet(
               `${PROVIDERS}/${ns}/${a.provider}/ConversionRates${qs}`,
             );
             return toolSuccess(result);
           }
           case 'get_public_dimension_data': {
-            const odata = {
-              $top: a.$top,
-              $skip: a.$skip,
-              $filter: a.$filter,
-              $select: a.$select,
-              $orderby: a.$orderby,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(
+              pickOData(a, ['$top', '$skip', '$filter', '$select', '$orderby', '$format']),
+            );
             const result = await client.sacGet(
               `${PROVIDERS}/sac_public_dimensions/${a.provider}/PublicDimensionData${qs}`,
             );
             return toolSuccess(result);
           }
           case 'get_data': {
-            const odata = {
-              $top: a.$top,
-              $skip: a.$skip,
-              $filter: a.$filter,
-              $select: a.$select,
-              $orderby: a.$orderby,
-              $count: a.$count,
-              $format: a.$format,
-            } as Record<string, string | number | boolean | undefined>;
-            const qs = buildODataQuery(odata);
+            const qs = buildODataQuery(pickOData(a));
             const params = new URLSearchParams(qs ? qs.slice(1) : '');
             if (a.deltaid) params.set('deltaid', String(a.deltaid));
             if (a.externalid) params.set('externalid', String(a.externalid));

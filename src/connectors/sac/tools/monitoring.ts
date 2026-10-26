@@ -9,7 +9,7 @@
 import { z } from 'zod';
 import type { SacClient } from '../sac-client.js';
 import type { ToolRegistration } from '../../../core/types.js';
-import { toolSuccess, toolError, buildODataQuery } from './_helpers.js';
+import { toolSuccess, toolError, buildODataQuery, pickOData } from './_helpers.js';
 
 export function monitoringTool(client: SacClient): ToolRegistration {
   return {
@@ -32,9 +32,7 @@ export function monitoringTool(client: SacClient): ToolRegistration {
       const operation = a.operation as string;
       try {
         if (operation === 'audit_export') {
-          const qs = buildODataQuery(
-            a as Record<string, string | number | boolean | undefined>,
-          );
+          const qs = buildODataQuery(pickOData(a));
           const result = await client.sacGet(
             `/api/v1/audit/activities/exportActivities${qs}`,
           );

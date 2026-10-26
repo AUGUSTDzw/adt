@@ -52,6 +52,38 @@ export function buildODataQuery(
   return `?${qs}`;
 }
 
+const ODATA_KEYS = [
+  '$top',
+  '$skip',
+  '$filter',
+  '$orderby',
+  '$select',
+  '$expand',
+  '$inlinecount',
+  '$format',
+  '$count',
+] as const;
+
+/**
+ * Return ONLY the OData system query options present in `a`, excluding
+ * non-OData fields (`operation`, `modelId`, `artifactId`, `storyId`, …) so
+ * they cannot leak into an SAC API query string via buildODataQuery. Pass
+ * `keys` to restrict to a per-operation subset; defaults to the full OData set.
+ */
+export function pickOData(
+  a: Record<string, unknown>,
+  keys: readonly string[] = ODATA_KEYS,
+): Record<string, string | number | boolean | undefined> {
+  const out: Record<string, string | number | boolean | undefined> = {};
+  for (const k of keys) {
+    const v = a[k];
+    if (v !== undefined) {
+      out[k] = v as string | number | boolean;
+    }
+  }
+  return out;
+}
+
 /** Standard "confirm write" guard used by mutating operations. */
 export function requireAlteration(allowalteration: unknown): ToolResult | null {
   if (!allowalteration) {

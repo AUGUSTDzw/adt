@@ -9,7 +9,7 @@
 import { z } from 'zod';
 import type { SacClient } from '../sac-client.js';
 import type { ToolRegistration } from '../../../core/types.js';
-import { toolSuccess, toolError, buildODataQuery } from './_helpers.js';
+import { toolSuccess, toolError, buildODataQuery, pickOData } from './_helpers.js';
 
 export function translationTool(client: SacClient): ToolRegistration {
   return {
@@ -35,9 +35,7 @@ export function translationTool(client: SacClient): ToolRegistration {
       try {
         switch (operation) {
           case 'list_artifacts': {
-            const qs = buildODataQuery(
-              a as Record<string, string | number | boolean | undefined>,
-            );
+            const qs = buildODataQuery(pickOData(a));
             const result = await client.sacGet(`/api/v1/ts/artifacts/metadata${qs}`);
             return toolSuccess(result);
           }
