@@ -44,10 +44,10 @@ export function createAdtConnector(): AdtConnector {
           handler: async (a) => ({ content: [{ type: 'text', text: String(await client.activate((a as any).objectUrl)) }] }) },
         { name: 'run_unit_tests', description: 'Run ABAP Unit tests for an object', inputSchema: { objectUrl: objUrl },
           handler: async (a) => ({ content: [{ type: 'json', json: await client.runUnitTests((a as any).objectUrl) }] }) },
-        { name: 'run_atc', description: 'Run ABAP Test Cockpit', inputSchema: { objectUrl: objUrl },
-          handler: async (a) => ({ content: [{ type: 'json', json: await client.runAtc((a as any).objectUrl) }] }) },
-        { name: 'manage_transports', description: 'Manage transports (add/release/import)', inputSchema: { action: z.enum(['add','release','import']), transportId: z.string(), objectUrl: objUrl.optional() },
-          handler: async (a) => ({ content: [{ type: 'text', text: await client.manageTransports((a as any).action, (a as any).transportId, (a as any).objectUrl) }] }) },
+        { name: 'run_atc', description: 'Run ABAP Test Cockpit (variant defaults to "default")', inputSchema: { objectUrl: objUrl, variant: z.string().optional() },
+          handler: async (a) => ({ content: [{ type: 'json', json: await client.runAtc((a as any).objectUrl, (a as any).variant) }] }) },
+        { name: 'manage_transports', description: 'Manage transports (add creates a new transport for an object; release releases it; import is STMS-only)', inputSchema: { action: z.enum(['add','release','import']), transportId: z.string(), objectUrl: objUrl.optional(), requestText: z.string().optional(), devclass: z.string().optional() },
+          handler: async (a) => ({ content: [{ type: 'text', text: await client.manageTransports((a as any).action, (a as any).transportId, (a as any).objectUrl, (a as any).requestText, (a as any).devclass) }] }) },
       ];
     },
   };

@@ -13,14 +13,7 @@ MCP transport, with every tool namespaced as `sap.<connector>.<tool>`:
 ## Prerequisites
 
 - **Node.js >= 20**
-- For the **RFC connector only**: the [SAP NetWeaver RFC SDK](https://support.sap.com/en/product/connectors/nw-rfc-sdk.html) must be installed and the `node-rfc` native module built against it. `node-rfc` is intentionally **not** in `package.json` (its native build fails without the SDK on most CI/developer machines). Install it separately:
-
-  ```bash
-  # after installing the SAP NWRFC SDK and setting SAPNWRFC_HOME
-  npm install node-rfc
-  ```
-
-  Without it, the RFC connector is **gracefully skipped** at startup (logged as a warning); SAC and ADT keep working. See `src/connectors/rfc/sap-client.ts` for the dynamic-import guard.
+- For the **RFC connector only**: the [SAP NetWeaver RFC SDK](https://support.sap.com/en/product/connectors/nw-rfc-sdk.html) must be installed and the `node-rfc` native module built against it. `node-rfc` is listed in `optionalDependencies` — `npm install` fetches it but the native build is skipped on machines without the SDK (npm treats the failed optional build as non-fatal, so the install never hangs). On a machine with the SAP NWRFC SDK installed and the build approved (`npm install-scripts approve node-rfc`), the RFC connector becomes available automatically. Without it, the RFC connector is **gracefully skipped** at startup (logged as a warning); SAC and ADT keep working. See `src/connectors/rfc/sap-client.ts` for the dynamic-import guard.
 
 ## Install
 

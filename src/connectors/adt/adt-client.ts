@@ -1,5 +1,5 @@
 /**
- * ADT API client — wraps `abap-adt-api` (v2.10.1) for ADT REST operations.
+ * ADT API client — wraps `abap-adt-api` (v8.5.0) for ADT REST operations.
  *
  * Auth is handled INTERNALLY by `abap-adt-api`'s `ADTClient`: its constructor
  * takes `(baseUrl, username, password | BearerFetcher, client?, language?, options?)`.
@@ -12,17 +12,17 @@
  *   XSUAA `tokenUrl` and returns `access_token` (mirrors the JWT/XSUUA shape in
  *   `reference/mcp-abap-adt`'s credentialSources / `TokenAuthProvider`).
  *
- * abap-adt-api v2.10.1 function-name mapping (contract method → lib function):
+ * abap-adt-api v8.5.0 function-name mapping (contract method → lib function):
  *   readSource(objectUrl)           → ADTClient.getObjectSource(objectSourceUrl)
  *   writeSource(objectUrl, content)  → ADTClient.setObjectSource(url, source, lockHandle, transport?)
  *                                      (acquires a lock first, releases after — the lib requires a lockHandle)
  *   search(query)                   → ADTClient.searchObject(query)
  *   activate(objectUrl)             → ADTClient.activate(objectName, objectUrl, ...) [2nd overload]
- *   runUnitTests(objectUrl)         → ADTClient.runUnitTest(url)
- *   runAtc(objectUrl)               → NOT AVAILABLE in v2.10.1 (added in 8.4.3, which the
- *                                      reference mcp-abap-abap-adt-api uses). Throws NotImplementedError.
- *   manageTransports('release', id) → ADTClient.transportRelease(transportNumber)
- *   manageTransports('add'/'import')→ NOT AVAILABLE in v2.10.1 (no add-object / import REST fn). Throws.
+ *   runUnitTests(objectUrl)         → ADTClient.unitTestRun(url, flags?)
+ *   runAtc(objectUrl, variant?)     → ADTClient.createAtcRun(variant, mainUrl, maxResults?)
+ *   manageTransports('release', id) → ADTClient.transportRelease(transportNumber, ignoreLocks?, IgnoreATC?)
+ *   manageTransports('add', ...)    → ADTClient.createTransport(objSourceUrl, REQUEST_TEXT, DEVCLASS, transportLayer?)
+ *   manageTransports('import', ...) → NOT an ADT REST operation (STMS only). Throws.
  *
  * All seven operations are INSTANCE methods so tests can stub them via
  * `vi.spyOn(conn.client, 'readSource')` (mirrors the SAC connector's mockability hook).
@@ -108,32 +108,41 @@ export class AdtClient {
   }
 
   async runUnitTests(objectUrl: string): Promise<unknown> {
-    return this.adt.runUnitTest(objectUrl);
+    return this.adt.unitTestRun(objectUrl);
   }
 
-  /**
-   * Run ABAP Test Cockpit. NOT supported by abap-adt-api v2.10.1 (the ATC REST
-   * surface was added in 8.4.3). Throws rather than inventing an API.
-   */
-  async runAtc(_objectUrl: string): Promise<never> {
-    throw new Error(
-      'runAtc is not supported by abap-adt-api v2.10.1 (upgrade to >=8.4.3 for ATC)',
-    );
+  /** Run ABAP Test Cockpit via createAtcRun(variant, mainUrl, maxResults?). */
+  async runAtc(objectUrl: string, variant = 'default'): Promise<unknown> {
+    return this.adt.createAtcRun(variant, objectUrl);
   }
 
   async manageTransports(
     action: 'add' | 'release' | 'import',
     transportId: string,
     objectUrl?: string,
+    requestText?: string,
+    devclass?: string,
   ): Promise<string> {
     if (action === 'release') {
       const report = await this.adt.transportRelease(transportId);
       return `released ${transportId} (${report.length} entries)`;
     }
-    // 'add' (add object to transport) and 'import' have no direct REST fn in v2.10.1.
-    void objectUrl;
+    if (action === 'add') {
+      if (!objectUrl || !devclass) {
+        throw new Error(
+          "manageTransports('add') requires objectUrl and devclass (target package)",
+        );
+      }
+      const tr = await this.adt.createTransport(
+        objectUrl,
+        requestText ?? 'sap-mcp transport',
+        devclass,
+      );
+      return `created transport ${tr} for ${objectUrl}`;
+    }
+    // 'import' is an STMS operation, not exposed via the ADT REST API.
     throw new Error(
-      `manageTransports('${action}') is not supported by abap-adt-api v2.10.1 (only 'release' is available)`,
+      "manageTransports('import') is an STMS operation, not exposed via ADT REST — use SAP transaction STMS",
     );
   }
 }
