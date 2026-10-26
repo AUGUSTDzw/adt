@@ -1,0 +1,15 @@
+# superpowers SDD scratch (briefs/reports/diffs/ledger)
+.superpowers/
+
+# deps & build
+node_modules/
+dist/
+
+# secrets
+.env
+
+# cloned reference repos (dev-only third-party; ANALYSIS.md is committed separately)
+reference/*/
+
+# keep the analysis report itself
+!reference/ANALYSIS.md
