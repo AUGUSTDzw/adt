@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Registry } from './registry.js';
 import type { AppConfig } from './config.js';
 import { redact } from './utils/sensitive-redact.js';
@@ -33,11 +34,38 @@ export async function startServer(registry: Registry, config: AppConfig): Promis
   const server = buildMcpServer(registry);
 
   if (config.transport === 'http') {
+    const port = config.httpPort ?? 8080;
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => crypto.randomUUID(),
     });
     await server.connect(transport);
-    logger.info({ port: config.httpPort }, 'SAP MCP server listening (HTTP)');
+    const httpServer = createServer(
+      async (req: IncomingMessage, res: ServerResponse) => {
+        if (config.httpToken) {
+          const auth = req.headers.authorization ?? '';
+          if (auth !== `Bearer ${config.httpToken}`) {
+            res.writeHead(401, { 'content-type': 'application/json' });
+            res.end(
+              JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: 'unauthorized' } }),
+            );
+            return;
+          }
+        }
+        try {
+          await transport.handleRequest(req, res);
+        } catch (e) {
+          logger.error({ err: String(e) }, 'HTTP MCP request failed');
+          if (!res.headersSent) {
+            res.writeHead(500, { 'content-type': 'application/json' });
+            res.end(
+              JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: 'internal error' } }),
+            );
+          }
+        }
+      },
+    );
+    httpServer.listen(port);
+    logger.info({ port }, 'SAP MCP server listening (HTTP)');
   } else {
     const transport = new StdioServerTransport();
     await server.connect(transport);
