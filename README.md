@@ -208,7 +208,3 @@ src/
 
 See the design spec and implementation plan under `docs/superpowers/`, and the
 reference-repo analysis at `reference/ANALYSIS.md`.
-
-## License
-
-MIT

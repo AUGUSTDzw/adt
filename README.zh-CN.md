@@ -301,7 +301,3 @@ src/
 ```
 
 设计文档和实施计划见 `docs/superpowers/`，参考仓库分析见 `reference/ANALYSIS.md`。
-
-## 许可证
-
-MIT
