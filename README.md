@@ -10,7 +10,7 @@ MCP transport, with every tool namespaced as `sap.<connector>.<tool>`:
 | --------- | ----------- | ------------------------------------------------------------- |
 | RFC       | `sap.rfc.*` | Call BAPIs/function modules, read tables, inspect metadata   |
 | SAC       | `sap.sac.*` | SAP Analytics Cloud stories, models, data export/import, etc. |
-| ADT       | `sap.adt.*` | 152 tools: source, objects, ATC, data, dumps, abapGit, debugger, traces, transports, refactoring, RAP, services |
+| ADT       | `sap.adt.*` | 165 tools: source, objects, ATC, data, dumps, abapGit, debugger, traces, transports, refactoring, RAP, services, SAP Notes, jobs, CDS, versions, locks |
 
 ## Prerequisites
 
@@ -96,13 +96,13 @@ OData params (`$top`, `$skip`, `$filter`, `$orderby`, `$select`, `$expand`,
 ### ADT — `sap.adt.*`
 
 ABAP Development Tools, wrapping `abap-adt-api` v8.5.0. Basic auth (user/pass)
-and XSUAA (client_credentials bearer) are both supported. **152 tools** — 33
-hand-crafted tools with typed schemas (below) + 119 auto-generated tools that
+and XSUAA (client_credentials bearer) are both supported. **165 tools** — 49
+hand-crafted tools with typed schemas (below) + 116 auto-generated tools that
 expose every remaining `ADTClient` method (debugger, traces, logpoints, RAP,
 refactoring, services, etc.). Each auto-generated tool accepts positional
 `args` and delegates to `ADTClient.<method>()`.
 
-**Hand-crafted tools (33):**
+**Hand-crafted tools (49):**
 
 | Tool                   | Parameters                                                                | Description                                                                          |
 | ---------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
@@ -116,7 +116,7 @@ refactoring, services, etc.). Each auto-generated tool accepts positional
 | `delete_object`        | `objectUrl`, `lockHandle`, `transport?`                                 | Delete an ABAP object                                                                |
 | `activate`             | `objectUrl`                                                              | Activate an ABAP object                                                              |
 | `object_structure`     | `objectUrl`                                                              | Get structure/metadata of an object                                                  |
-| `inactive_objects`      | —                                                                       | List all inactive objects                                                            |
+| `inactive_objects`     | —                                                                       | List all inactive objects                                                            |
 | `validate_new_object`  | `options`                                                               | Validate object creation parameters                                                   |
 | `where_used`           | `objectUrl`, `line?`, `column?`                                         | Where-used list for an object                                                        |
 | `find_definition`      | `objectUrl`, `source`, `line`, `startCol`, `endCol`                     | Find definition location of a symbol                                                  |
@@ -139,6 +139,22 @@ refactoring, services, etc.). Each auto-generated tool accepts positional
 | `rename_preview`       | `objectUrl`, `line`, `startCol`, `endCol`                               | Preview a rename refactoring                                                         |
 | `extract_method_preview` | `objectUrl`, `line`, `startCol`, `endCol`                            | Preview an extract-method refactoring                                                |
 | `rap_gen_preview`      | `content`                                                               | Preview RAP generation from a spec                                                   |
+| `dump_details`         | `dumpId`, `startLine?`, `maxLines?`                                     | Read short dump trace by dump ID                                                     |
+| `system_info`          | `refresh?`                                                              | Get SAP system profile information                                                   |
+| `source_search`        | `searchString`, `packages?`, `objectTypes?`, `objectName?`, `maxResults?` | Full-text grep across ABAP repository                                            |
+| `list_locks`           | `client?`, `user?`, `table?`                                            | List active ABAP locks (SM12 equivalent)                                             |
+| `get_note`             | `note`                                                                  | Get a SAP Note by ID                                                                 |
+| `check_note_status`    | `note`                                                                  | Check the implementation status of a SAP Note                                        |
+| `implement_note`       | `note`, `transport?`                                                    | Implement (deploy) a SAP Note into a transport                                       |
+| `schedule_job`         | `jobName`, `program`, `user`, `startTime?`, `endTime?`, `startMode?`, `target?`, `transport?` | Schedule an ABAP background job          |
+| `read_spool`           | `spoolId`                                                               | Read spool request content by spool ID                                               |
+| `cds_dependencies`     | `entity`                                                                | Get CDS view dependency graph                                                        |
+| `list_versions`        | `objectUrl`                                                             | List all versions of an ABAP object                                                  |
+| `compare_versions`     | `sourceUri`, `from`, `to`                                               | Compare two versions of an ABAP object (active vs inactive)                         |
+| `package_tree`         | `packageName`, `maxDepth?`, `maxObjects?`                               | Recursively list a package hierarchy                                                 |
+| `object_diff`          | `objectUrl`, `fromVersion?`, `toVersion?`                               | Show unified diff between two versions of an object                                  |
+| `resolve_transport`    | `objectUrl`, `createIfMissing?`                                         | Resolve the best transport for an object                                             |
+| `force_unlock`         | `objectUrl`, `dropSession?`                                             | Force unlock an ABAP object                                                          |
 
 **Auto-generated tools (119)** — one per remaining `ADTClient` method. Naming
 convention: camelCase method → snake_case tool (e.g. `debuggerStep` →

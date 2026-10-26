@@ -346,4 +346,37 @@ export class AdtClient {
     if (typeof fn !== 'function') throw new Error(`ADTClient has no method '${method}'`);
     return fn.apply(this.adt, args);
   }
+
+  // ─── Raw ADT HTTP ──────────────────────────────────────────────────────────
+  // Endpoints not exposed by abap-adt-api's ADTClient. Uses the internal
+  // AdtHTTP instance (this.adt.h) which handles auth, cookies, CSRF, and
+  // autologin transparently.
+
+  async rawGet(path: string, opts?: { accept?: string; qs?: Record<string, string | number> }): Promise<string> {
+    const h = (this.adt as any).h;
+    if (!h) throw new Error('ADTClient not initialized');
+    const config: Record<string, unknown> = {};
+    if (opts?.accept) config.headers = { Accept: opts.accept };
+    if (opts?.qs) config.qs = opts.qs;
+    const res = await h.request(path, config);
+    return typeof res.body === 'string' ? res.body : JSON.stringify(res.body ?? '');
+  }
+
+  async rawPost(path: string, body?: string, opts?: { contentType?: string; accept?: string; qs?: Record<string, string | number> }): Promise<string> {
+    const h = (this.adt as any).h;
+    if (!h) throw new Error('ADTClient not initialized');
+    const headers: Record<string, string> = {};
+    if (opts?.contentType) headers['Content-Type'] = opts.contentType;
+    if (opts?.accept) headers['Accept'] = opts.accept;
+    const config: Record<string, unknown> = { method: 'POST' };
+    if (Object.keys(headers).length) config.headers = headers;
+    if (body) config.body = body;
+    if (opts?.qs) config.qs = opts.qs;
+    const res = await h.request(path, config);
+    return typeof res.body === 'string' ? res.body : JSON.stringify(res.body ?? '');
+  }
+
+  async rawPostXml(path: string, xml: string, accept = 'application/xml'): Promise<string> {
+    return this.rawPost(path, xml, { contentType: 'application/xml', accept });
+  }
 }

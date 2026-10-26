@@ -2,17 +2,34 @@ import { describe, it, expect, vi } from 'vitest';
 import { createAdtConnector } from '../../../src/connectors/adt/index.js';
 
 describe('ADT connector', () => {
-  it('registers 152 tools (33 hand-crafted + 119 auto-generated)', async () => {
+  it('registers 165 tools (49 hand-crafted + 116 auto-generated)', async () => {
     const conn = createAdtConnector();
     await conn.init({ baseUrl: 'https://s4.example.com', authMode: 'basic', user: 'U', pass: 'P' });
     const names = conn.tools().map(t => t.name).sort();
-    expect(names).toHaveLength(152);
-    // hand-crafted tools
+    expect(names).toHaveLength(165);
+    // original hand-crafted tools
     expect(names).toContain('read_source');
     expect(names).toContain('run_atc');
     expect(names).toContain('where_used');
     expect(names).toContain('list_dumps');
     expect(names).toContain('git_repos');
+    // new hand-crafted tools (custom HTTP + composite)
+    expect(names).toContain('dump_details');
+    expect(names).toContain('system_info');
+    expect(names).toContain('source_search');
+    expect(names).toContain('list_locks');
+    expect(names).toContain('get_note');
+    expect(names).toContain('check_note_status');
+    expect(names).toContain('implement_note');
+    expect(names).toContain('schedule_job');
+    expect(names).toContain('read_spool');
+    expect(names).toContain('cds_dependencies');
+    expect(names).toContain('list_versions');
+    expect(names).toContain('compare_versions');
+    expect(names).toContain('package_tree');
+    expect(names).toContain('object_diff');
+    expect(names).toContain('resolve_transport');
+    expect(names).toContain('force_unlock');
     // auto-generated tools (from ADTClient prototype methods)
     expect(names).toContain('debugger_step');
     expect(names).toContain('debugger_set_breakpoints');
@@ -45,6 +62,28 @@ describe('ADT connector', () => {
     const res = await t.handler({ args: ['stepOver'] });
     expect(res.content.length).toBeGreaterThan(0);
     expect(spy).toHaveBeenCalledWith('debuggerStep', ['stepOver']);
+    spy.mockRestore();
+  });
+
+  it('dump_details uses rawGet (custom HTTP endpoint)', async () => {
+    const conn = createAdtConnector();
+    await conn.init({ baseUrl: 'https://s4.example.com', authMode: 'basic', user: 'U', pass: 'P' });
+    const spy = vi.spyOn(conn.client!, 'rawGet').mockResolvedValue('<dump>short dump trace</dump>');
+    const t = conn.tools().find(t => t.name === 'dump_details')!;
+    const res = await t.handler({ dumpId: 'XYZ' });
+    expect(res.content.length).toBeGreaterThan(0);
+    expect(spy).toHaveBeenCalledWith('/sap/bc/adt/runtime/dump/XYZ', expect.anything());
+    spy.mockRestore();
+  });
+
+  it('system_info uses rawGet (custom HTTP endpoint)', async () => {
+    const conn = createAdtConnector();
+    await conn.init({ baseUrl: 'https://s4.example.com', authMode: 'basic', user: 'U', pass: 'P' });
+    const spy = vi.spyOn(conn.client!, 'rawGet').mockResolvedValue('<system>S/4HANA</system>');
+    const t = conn.tools().find(t => t.name === 'system_info')!;
+    const res = await t.handler({ refresh: true });
+    expect(res.content.length).toBeGreaterThan(0);
+    expect(spy).toHaveBeenCalledWith('/sap/bc/adt/system/information', expect.anything());
     spy.mockRestore();
   });
 });

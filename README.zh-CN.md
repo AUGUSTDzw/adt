@@ -8,7 +8,7 @@
 | ------ | ------------ | ----------------------------------------------------------- |
 | RFC    | `sap.rfc.*`  | 调用 BAPI/函数模块、读取表数据、查询函数元数据             |
 | SAC    | `sap.sac.*`  | SAP Analytics Cloud 故事、模型、数据导入导出等              |
-| ADT    | `sap.adt.*`  | 152 个工具：源码、对象、ATC、数据、短转储、abapGit、调试器、追踪、传输、重构、RAP、服务 |
+| ADT    | `sap.adt.*`  | 165 个工具：源码、对象、ATC、数据、短转储、abapGit、调试器、追踪、传输、重构、RAP、服务、SAP Notes、作业、CDS、版本、锁 |
 
 ## 功能概览
 
@@ -160,9 +160,9 @@ SAP Analytics Cloud。每个工具通过 `operation` 字段分发（`smart-query
 
 ### ADT — `sap.adt.*`
 
-ABAP Development Tools，封装 `abap-adt-api` v8.5.0。支持 Basic 认证（用户名/密码）和 XSUAA（client_credentials 持有者令牌）。**152 个工具**——33 个手工编写的带类型 schema 的工具（见下表）+ 119 个自动生成的工具，暴露所有剩余的 `ADTClient` 方法（调试器、追踪、日志点、RAP、重构、服务等）。每个自动生成的工具接受位置参数 `args` 并委托给 `ADTClient.<method>()`。
+ABAP Development Tools，封装 `abap-adt-api` v8.5.0。支持 Basic 认证（用户名/密码）和 XSUAA（client_credentials 持有者令牌）。**165 个工具**——49 个手工编写的带类型 schema 的工具（见下表）+ 116 个自动生成的工具，暴露所有剩余的 `ADTClient` 方法（调试器、追踪、日志点、RAP、重构、服务等）。每个自动生成的工具接受位置参数 `args` 并委托给 `ADTClient.<method>()`。
 
-**手工编写工具（33 个）：**
+**手工编写工具（49 个）：**
 
 | 工具                    | 参数                                                                   | 说明                                                                                       |
 | ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -199,6 +199,22 @@ ABAP Development Tools，封装 `abap-adt-api` v8.5.0。支持 Basic 认证（�
 | `rename_preview`        | `objectUrl`, `line`, `startCol`, `endCol`                          | 预览重命名重构                                                                             |
 | `extract_method_preview`| `objectUrl`, `line`, `startCol`, `endCol`                          | 预览抽取方法重构                                                                           |
 | `rap_gen_preview`       | `content`                                                           | 预览 RAP 生成                                                                             |
+| `dump_details`          | `dumpId`, `startLine?`, `maxLines?`                                | 按转储 ID 读取短转储跟踪                                                                   |
+| `system_info`           | `refresh?`                                                          | 获取 SAP 系统配置信息                                                                      |
+| `source_search`         | `searchString`, `packages?`, `objectTypes?`, `objectName?`, `maxResults?` | 全仓库全文搜索（grep 风格）                                                     |
+| `list_locks`            | `client?`, `user?`, `table?`                                        | 列出活动 ABAP 锁（SM12 等效）                                                              |
+| `get_note`              | `note`                                                              | 按 ID 获取 SAP Note                                                                        |
+| `check_note_status`     | `note`                                                              | 检查 SAP Note 的实施状态                                                                   |
+| `implement_note`        | `note`, `transport?`                                               | 将 SAP Note 实施（部署）到传输请求                                                         |
+| `schedule_job`          | `jobName`, `program`, `user`, `startTime?`, `endTime?`, `startMode?`, `target?`, `transport?` | 计划 ABAP 后台作业                          |
+| `read_spool`            | `spoolId`                                                           | 按 spool ID 读取 spool 请求内容                                                            |
+| `cds_dependencies`      | `entity`                                                            | 获取 CDS 视图依赖关系图                                                                    |
+| `list_versions`         | `objectUrl`                                                         | 列出 ABAP 对象的所有版本                                                                   |
+| `compare_versions`      | `sourceUri`, `from`, `to`                                           | 对比 ABAP 对象的两个版本（活动版 vs 非活动版）                                            |
+| `package_tree`          | `packageName`, `maxDepth?`, `maxObjects?`                           | 递归列出包层次结构                                                                         |
+| `object_diff`           | `objectUrl`, `fromVersion?`, `toVersion?`                           | 显示 ABAP 对象两个版本之间的统一差异                                                       |
+| `resolve_transport`     | `objectUrl`, `createIfMissing?`                                     | 为对象解析最佳传输请求                                                                     |
+| `force_unlock`          | `objectUrl`, `dropSession?`                                         | 强制解锁 ABAP 对象                                                                         |
 
 **自动生成工具（119 个）** — 每个剩余的 `ADTClient` 方法一个。命名规则：camelCase 方法名 → snake_case 工具名（例如 `debuggerStep` → `debugger_step`）。每个接受 `{ args?: unknown[] }`（位置参数）。主要分类：
 
