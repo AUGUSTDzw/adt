@@ -1,5 +1,7 @@
 # sap-mcp-unified
 
+English | [简体中文](./README.zh-CN.md)
+
 A single [Model Context Protocol](https://modelcontextprotocol.io/) server that
 exposes SAP systems to LLM clients. Three connectors share one process and one
 MCP transport, with every tool namespaced as `sap.<connector>.<tool>`:
