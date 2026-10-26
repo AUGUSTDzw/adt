@@ -95,12 +95,28 @@ OData params (`$top`, `$skip`, `$filter`, `$orderby`, `$select`, `$expand`,
 
 ### ADT — `sap.adt.*`
 
-ABAP Development Tools, wrapping `abap-adt-api` v8.5.0. Basic auth (user/pass)
-and XSUAA (client_credentials bearer) are both supported. **165 tools** — 49
+ABAP Development Tools, wrapping `abap-adt-api` v8.5.0. **165 tools** — 49
 hand-crafted tools with typed schemas (below) + 116 auto-generated tools that
 expose every remaining `ADTClient` method (debugger, traces, logpoints, RAP,
 refactoring, services, etc.). Each auto-generated tool accepts positional
 `args` and delegates to `ADTClient.<method>()`.
+
+**Authentication modes:**
+
+| Mode | Config | Description |
+|------|--------|-------------|
+| `basic` | `SAP_ADT_USER`, `SAP_ADT_PASS` | HTTP Basic auth (username/password) |
+| `xsuaa` | `SAP_ADT_CLIENT_ID`, `SAP_ADT_CLIENT_SECRET`, `SAP_ADT_TOKEN_URL` | OAuth2 client_credentials (machine-to-machine) |
+| `jwt` | `SAP_ADT_TOKEN` | Pre-provided JWT bearer token (SSO) |
+
+**JWT/SSO:** For SAP BTP ABAP Cloud or scenarios requiring interactive login, use
+`SAP_ADT_AUTHMODE=jwt` with `SAP_ADT_TOKEN=<token>`. The token can be obtained via:
+- `mcp-auth` CLI tool (from `@mcp-abap-adt/auth-broker-cli` package)
+- SAP Business Application Studio
+- Any OAuth2 authorization_code flow
+
+The `@mcp-abap-adt/auth-broker` package is included for advanced SSO scenarios
+with browser-based login and token refresh.
 
 **Hand-crafted tools (49):**
 

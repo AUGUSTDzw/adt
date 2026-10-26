@@ -2,7 +2,9 @@
   "name": "sap-mcp-unified",
   "version": "0.1.0",
   "type": "module",
-  "bin": { "sap-mcp": "./dist/index.js" },
+  "bin": {
+    "sap-mcp": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
@@ -11,8 +13,11 @@
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
+    "@mcp-abap-adt/auth-broker": "^5.0.6",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "abap-adt-api": "^8.4.3",
     "dotenv": "^16.4.5",

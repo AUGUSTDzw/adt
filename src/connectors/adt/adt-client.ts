@@ -11,6 +11,10 @@
  *   `options.auth = { bearer }`. Our fetcher POSTs client_credentials to the
  *   XSUAA `tokenUrl` and returns `access_token` (mirrors the JWT/XSUUA shape in
  *   `reference/mcp-abap-adt`'s credentialSources / `TokenAuthProvider`).
+ * - jwt mode: pass a `BearerFetcher` that returns a pre-provided JWT token.
+ *   The token is obtained externally (e.g., via `mcp-auth` CLI or browser login)
+ *   and configured via the `SAP_ADT_TOKEN` environment variable. This supports
+ *   SAP BTP ABAP Cloud and XSUAA scenarios where tokens are issued by an IdP.
  *
  * abap-adt-api v8.5.0 function-name mapping (contract method → lib function):
  *   readSource(objectUrl)           → ADTClient.getObjectSource(objectSourceUrl)
@@ -32,13 +36,13 @@ import { ADTClient, session_types } from 'abap-adt-api';
 
 export class AdtClient {
   private readonly adt: ADTClient;
-  private readonly authMode: 'basic' | 'xsuaa';
+  private readonly authMode: 'basic' | 'xsuaa' | 'jwt';
 
   constructor(cfg: Record<string, unknown>) {
     // Accept both camelCase (test fixtures) and lowercase (env-var loader
     // lowerCamel output) key variants. e.g. baseUrl / baseurl.
     const baseUrl = String(cfg.baseUrl ?? cfg.baseurl ?? '');
-    const authMode = String(cfg.authMode ?? cfg.authmode ?? 'basic') as 'basic' | 'xsuaa';
+    const authMode = String(cfg.authMode ?? cfg.authmode ?? 'basic') as 'basic' | 'xsuaa' | 'jwt';
     this.authMode = authMode;
     const client = cfg.client ? String(cfg.client) : undefined;
     const language = cfg.language ? String(cfg.language) : undefined;
@@ -72,6 +76,15 @@ export class AdtClient {
         return json.access_token;
       };
       this.adt = new ADTClient(baseUrl, clientId, fetcher, client, language);
+    } else if (authMode === 'jwt') {
+      const token = String(cfg.token ?? cfg.jwtToken ?? '');
+      if (!token) {
+        throw new Error('jwt auth requires a token (set SAP_ADT_TOKEN or use mcp-auth to obtain one)');
+      }
+      // The lib calls this fetcher on login and sets `auth: { bearer }`.
+      // The token is pre-provided (e.g., via SAP_ADT_TOKEN env var or mcp-auth CLI).
+      const fetcher = async (): Promise<string> => token;
+      this.adt = new ADTClient(baseUrl, 'jwt', fetcher, client, language);
     } else {
       const user = String(cfg.user ?? '');
       const pass = String(cfg.pass ?? '');

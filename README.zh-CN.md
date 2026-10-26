@@ -160,7 +160,23 @@ SAP Analytics Cloud。每个工具通过 `operation` 字段分发（`smart-query
 
 ### ADT — `sap.adt.*`
 
-ABAP Development Tools，封装 `abap-adt-api` v8.5.0。支持 Basic 认证（用户名/密码）和 XSUAA（client_credentials 持有者令牌）。**165 个工具**——49 个手工编写的带类型 schema 的工具（见下表）+ 116 个自动生成的工具，暴露所有剩余的 `ADTClient` 方法（调试器、追踪、日志点、RAP、重构、服务等）。每个自动生成的工具接受位置参数 `args` 并委托给 `ADTClient.<method>()`。
+ABAP Development Tools，封装 `abap-adt-api` v8.5.0。**165 个工具**——49 个手工编写的带类型 schema 的工具（见下表）+ 116 个自动生成的工具，暴露所有剩余的 `ADTClient` 方法（调试器、追踪、日志点、RAP、重构、服务等）。每个自动生成的工具接受位置参数 `args` 并委托给 `ADTClient.<method>()`。
+
+**认证模式：**
+
+| 模式 | 配置 | 说明 |
+|------|------|------|
+| `basic` | `SAP_ADT_USER`, `SAP_ADT_PASS` | HTTP Basic 认证（用户名/密码） |
+| `xsuaa` | `SAP_ADT_CLIENT_ID`, `SAP_ADT_CLIENT_SECRET`, `SAP_ADT_TOKEN_URL` | OAuth2 client_credentials（机器对机器） |
+| `jwt` | `SAP_ADT_TOKEN` | 预配置的 JWT 持有者令牌（SSO） |
+
+**JWT/SSO：** 对于 SAP BTP ABAP Cloud 或需要交互式登录的场景，使用
+`SAP_ADT_AUTHMODE=jwt` 并设置 `SAP_ADT_TOKEN=<token>`。令牌可通过以下方式获取：
+- `mcp-auth` CLI 工具（来自 `@mcp-abap-adt/auth-broker-cli` 包）
+- SAP Business Application Studio
+- 任何 OAuth2 authorization_code 流程
+
+`@mcp-abap-adt/auth-broker` 包已包含，用于支持浏览器登录和令牌刷新的高级 SSO 场景。
 
 **手工编写工具（49 个）：**
 
