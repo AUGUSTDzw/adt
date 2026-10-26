@@ -35,8 +35,10 @@ export class AdtClient {
   private readonly authMode: 'basic' | 'xsuaa';
 
   constructor(cfg: Record<string, unknown>) {
-    const baseUrl = String(cfg.baseUrl ?? '');
-    const authMode = String(cfg.authMode ?? 'basic') as 'basic' | 'xsuaa';
+    // Accept both camelCase (test fixtures) and lowercase (env-var loader
+    // lowerCamel output) key variants. e.g. baseUrl / baseurl.
+    const baseUrl = String(cfg.baseUrl ?? cfg.baseurl ?? '');
+    const authMode = String(cfg.authMode ?? cfg.authmode ?? 'basic') as 'basic' | 'xsuaa';
     this.authMode = authMode;
     const client = cfg.client ? String(cfg.client) : undefined;
     const language = cfg.language ? String(cfg.language) : undefined;
@@ -44,9 +46,9 @@ export class AdtClient {
     if (!baseUrl) throw new Error('AdtClient requires baseUrl');
 
     if (authMode === 'xsuaa') {
-      const clientId = String(cfg.clientId ?? '');
-      const clientSecret = String(cfg.clientSecret ?? '');
-      const tokenUrl = String(cfg.tokenUrl ?? '');
+      const clientId = String(cfg.clientId ?? cfg.clientid ?? '');
+      const clientSecret = String(cfg.clientSecret ?? cfg.clientsecret ?? '');
+      const tokenUrl = String(cfg.tokenUrl ?? cfg.tokenurl ?? '');
       if (!clientId || !clientSecret || !tokenUrl) {
         throw new Error('xsuaa auth requires clientId, clientSecret and tokenUrl');
       }

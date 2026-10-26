@@ -132,7 +132,7 @@ export function createAdtConnector(): AdtConnector {
         'tableContents', 'runQuery', 'ddicElement', 'packageSearchHelp',
         'dumps', 'feeds', 'transportRelease', 'createTransport',
         'transportDetails', 'userTransports', 'gitRepos', 'gitPullRepo',
-        'renameEvaluate', 'extractMethodEvaluate', 'rapGenPreview',
+        'renamePreview', 'extractMethodPreview', 'rapGenPreview',
       ]);
       const proto = Object.getPrototypeOf(client.raw);
       const descriptors = Object.getOwnPropertyDescriptors(proto);
