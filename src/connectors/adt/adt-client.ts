@@ -34,6 +34,7 @@
 
 import { ADTClient, session_types } from 'abap-adt-api';
 import { AuthBroker } from '@mcp-abap-adt/auth-broker';
+import { refreshThenLogin } from '@mcp-abap-adt/auth-providers';
 import { InMemorySessionStore } from './auth/InMemorySessionStore.js';
 import { EnvServiceKeyStore } from './auth/EnvServiceKeyStore.js';
 import { BrowserAuthStrategy } from './auth/BrowserAuthStrategy.js';
@@ -100,12 +101,12 @@ export class AdtClient {
         // No token - use AuthBroker for browser login (initialized lazily)
         const sessionStore = new InMemorySessionStore();
         const serviceKeyStore = new EnvServiceKeyStore(cfg);
-        const browserStrategy = new BrowserAuthStrategy(authBrokerPort);
 
         this.authBroker = new AuthBroker({
           sessionStore,
           serviceKeyStore,
-          authorization: () => browserStrategy,
+          authorization: () => new BrowserAuthStrategy(authBrokerPort),
+          renewal: () => refreshThenLogin(),
           onWriteFailure: 'continue',
         });
       }

@@ -30,6 +30,7 @@ export function createAdtConnector(): AdtConnector {
     client: null,
     async init(cfg: ConnectorConfig): Promise<void> {
       conn.client = new AdtClient(cfg);
+      await conn.client.init();
     },
     tools(): ToolRegistration[] {
       if (!conn.client) {
