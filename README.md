@@ -56,13 +56,55 @@ npm start
 
 ## Tool inventory
 
-All tools are registered under the `sap.<id>.<name>` namespace by the registry.
+All tools are registered under the `sap.<id>.<name>` namespace by the registry. A
+connector that fails to initialise (e.g. RFC without the NWRFC SDK, or SAC with a
+bad token) is **skipped** — it never blocks the other connectors.
 
-- **RFC** (`sap.rfc.`): `call_function`, `read_table`, `get_function_metadata`, `search_functions`
-- **SAC** (`sap.sac.`): `calendar`, `content_transport`, `content`, `data_export`, `data_import`, `monitoring`, `multi_actions`, `schedule_publication`, `smart_query`, `translation`, `user_management`
-- **ADT** (`sap.adt.`): `read_source`, `write_source`, `search_objects`, `activate`, `run_unit_tests`, `run_atc`, `manage_transports`
+### RFC — `sap.rfc.*`
 
-A connector that fails to initialise (e.g. RFC without the NWRFC SDK, or SAC with a bad token) is **skipped** — it never blocks the other connectors.
+Requires the SAP NWRFC SDK + `node-rfc` native module (see Prerequisites).
+Ported from the Python `sap-rfc-mcp-server` reference.
+
+| Tool              | Parameters                                                        | Description                                  |
+| ------------------ | ----------------------------------------------------------------- | -------------------------------------------- |
+| `call_function`   | `function`, `imports?`, `tables?`                                | Call an SAP RFC function module / BAPI       |
+| `read_table`      | `table`, `fields?`, `where?`, `maxRows?`                          | Read rows from an SAP table (RFC_READ_TABLE) |
+| `get_function_metadata` | `function`                                                  | Parameter metadata for an RFC function module |
+| `search_functions` | `pattern`                                                        | Search RFC function modules by name pattern   |
+
+### SAC — `sap.sac.*`
+
+SAP Analytics Cloud. Each tool dispatches on an `operation` field (except
+`smart_query`, which takes direct query params). List operations accept standard
+OData params (`$top`, `$skip`, `$filter`, `$orderby`, `$select`, `$expand`,
+`$count`); mutating operations require `allowalteration: true` as a safety guard.
+
+- **`calendar`** (3 ops) — `get_event`, `update_event`, `copy_event`
+- **`content`** (10 ops) — `stories_list`, `stories_copy`, `stories_rename`, `stories_delete`, `metadata_get`, `resources_list`, `resources_get`, `filerepository_list`, `repositories_list`, `widget_get_data`
+- **`content-transport`** (7 ops) — `create_export_job`, `get_job_status`, `create_import_job`, `delete_content`, `get_content_item`, `get_permissions`, `move_item`
+- **`data-export`** (22 ops) — `list_namespaces`, `get_namespace`, `list_providers`, `list_subscriptions`, `get_subscription`, `list_provider_subscriptions`, `create_subscription`, `delete_subscription`, `admin_metadata`, `get_provider_metadata`, `get_provider_entities`, `get_fact_data`, `get_fact_data_aggregation`, `get_fact_data_difference`, `get_master_data`, `get_dimension_master`, `get_dimension_master_hierarchy`, `get_audit_data`, `get_currency_table`, `get_conversion_rates`, `get_public_dimension_data`, `get_data`
+- **`data-import`** (19 ops) — `list_models`, `get_model`, `get_model_metadata`, `create_job`, `list_jobs`, `upload_data`, `validate_job`, `run_job`, `get_job_status`, `get_invalid_rows`, `delete_job`, `oneclick`, `list_public_dimensions`, `get_public_dimension`, `get_public_dimension_metadata`, `create_public_dimension_job`, `list_currency_conversions`, `get_currency_conversion`, `get_currency_conversion_metadata`
+- **`monitoring`** (2 ops) — `audit_export`, `monitoring_get`
+- **`multi-actions`** (2 ops) — `execute`, `get_status`
+- **`schedule-publication`** (4 ops) — `get_template`, `create`, `update`, `delete`
+- **`smart-query`** — direct params (`modelId`, `viewId`, `query`, `execute`, …); no `operation` dispatch
+- **`translation`** (4 ops) — `list_artifacts`, `get_artifact`, `download_xliff`, `download_xliff_bulk`
+- **`user-management`** (10 ops) — `users_list`, `users_get`, `users_create`, `users_update`, `users_patch`, `users_delete`, `teams_list`, `teams_create`, `teams_patch`, `users_bulk`
+
+### ADT — `sap.adt.*`
+
+ABAP Development Tools, wrapping `abap-adt-api` v8.5.0. Basic auth (user/pass)
+and XSUAA (client_credentials bearer) are both supported.
+
+| Tool                 | Parameters                                                                | Description                                                                          |
+| -------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `read_source`        | `objectUrl`                                                              | Read ABAP source for an object                                                       |
+| `write_source`       | `objectUrl`, `content`                                                   | Write ABAP source (acquires/releases a lock)                                         |
+| `search_objects`     | `query`                                                                  | Search ABAP repository objects                                                       |
+| `activate`           | `objectUrl`                                                              | Activate an ABAP object                                                              |
+| `run_unit_tests`     | `objectUrl`                                                              | Run ABAP Unit tests for an object                                                    |
+| `run_atc`            | `objectUrl`, `variant?`                                                  | Run ABAP Test Cockpit (`variant` defaults to `default`)                              |
+| `manage_transports`  | `action` (`add`/`release`/`import`), `transportId`, `objectUrl?`, `requestText?`, `devclass?` | `add` creates a transport for an object (needs `objectUrl`+`devclass`); `release` releases it; `import` is STMS-only (use transaction STMS) |
 
 ## Adding a connector
 
