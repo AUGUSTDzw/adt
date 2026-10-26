@@ -1,11 +1,13 @@
 /**
  * ADT connector factory.
  *
- * Returns a `SapConnector` exposing 34 tools under `sap.adt.*` (the registry
+ * Returns a `SapConnector` exposing 152 tools under `sap.adt.*` (the registry
  * adds the prefix). Covers the full ABAP development lifecycle: source CRUD,
- * object lifecycle, analysis, ATC, data access, runtime errors, ababGit,
- * transports, refactoring, RAP, discovery, and a raw_call escape hatch for the
- * remaining ~120 ADTClient methods (debugger, traces, logpoints, etc.).
+ * object lifecycle, analysis, ATC, data access, runtime errors, abapGit,
+ * transports, refactoring, RAP, services, debugger, traces, logpoints, etc.
+ *
+ * 33 hand-crafted tools with typed zod schemas + 119 auto-generated tools that
+ * expose every remaining ADTClient method (each accepts positional `args`).
  *
  * The AdtClient instance is exposed as `conn.client` so tests can stub its
  * instance methods via `vi.spyOn(conn.client, 'readSource')`.
@@ -37,7 +39,7 @@ export function createAdtConnector(): AdtConnector {
       const objUrl = z.string();
       const s = z.string();
       const n = z.number();
-      return [
+      const tools: ToolRegistration[] = [
         // ─── Source CRUD ───────────────────────────────────────────────────
         { name: 'read_source', description: 'Read ABAP source for an object', inputSchema: { objectUrl: objUrl },
           handler: async (a) => ({ content: [{ type: 'text', text: String(await client.readSource((a as any).objectUrl)) }] }) },
@@ -114,10 +116,40 @@ export function createAdtConnector(): AdtConnector {
         // ─── RAP generation ────────────────────────────────────────────────
         { name: 'rap_gen_preview', description: 'Preview RAP generation from a content spec', inputSchema: { content: z.record(z.unknown()) },
           handler: async (a) => ({ content: [{ type: 'json', json: await client.rapGenPreview((a as any).content) }] }) },
-        // ─── Escape hatch ─────────────────────────────────────────────────
-        { name: 'raw_call', description: 'Call any abap-adt-api ADTClient method directly (for niche endpoints: debugger, traces, logpoints, domain properties, etc.). Pass the method name and an array of positional arguments.', inputSchema: { method: s, args: z.array(z.unknown()).optional() },
-          handler: async (a) => ({ content: [{ type: 'json', json: await client.callRaw((a as any).method, (a as any).args ?? []) }] }) },
       ];
+
+      // ─── Auto-generated tools for all remaining ADTClient methods ────────
+      // Every public method on abap-adt-api's ADTClient not already wrapped by
+      // a hand-crafted tool above gets its own tool here. This gives full
+      // coverage (~150 tools) without hand-writing 120 wrappers. Each accepts
+      // positional `args` (like raw_call) so the LLM can call any ADT endpoint.
+      const covered = new Set<string>([
+        'getObjectSource', 'setObjectSource', 'lock', 'unLock', 'syntaxCheck',
+        'prettyPrinter', 'revisions', 'searchObject', 'createObject',
+        'deleteObject', 'activate', 'objectStructure', 'inactiveObjects',
+        'validateNewObject', 'usageReferences', 'findDefinition', 'runClass',
+        'unitTestRun', 'createAtcRun', 'atcWorklists', 'fixProposals',
+        'tableContents', 'runQuery', 'ddicElement', 'packageSearchHelp',
+        'dumps', 'feeds', 'transportRelease', 'createTransport',
+        'transportDetails', 'userTransports', 'gitRepos', 'gitPullRepo',
+        'renameEvaluate', 'extractMethodEvaluate', 'rapGenPreview',
+      ]);
+      const proto = Object.getPrototypeOf(client.raw);
+      const descriptors = Object.getOwnPropertyDescriptors(proto);
+      for (const [method, desc] of Object.entries(descriptors)) {
+        if (method.startsWith('_') || method === 'constructor' || covered.has(method)) continue;
+        if (typeof desc.value !== 'function') continue;
+        const snake = method.replace(/([A-Z])/g, '_$1').toLowerCase();
+        tools.push({
+          name: snake,
+          description: `ADTClient.${method}()`,
+          inputSchema: { args: z.array(z.unknown()).optional() },
+          handler: async (a) => ({
+            content: [{ type: 'json', json: await client.callRaw(method, (a as any).args ?? []) }],
+          }),
+        });
+      }
+      return tools;
     },
   };
   return conn;

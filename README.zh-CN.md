@@ -8,7 +8,7 @@
 | ------ | ------------ | ----------------------------------------------------------- |
 | RFC    | `sap.rfc.*`  | 调用 BAPI/函数模块、读取表数据、查询函数元数据             |
 | SAC    | `sap.sac.*`  | SAP Analytics Cloud 故事、模型、数据导入导出等              |
-| ADT    | `sap.adt.*`  | ABAP 源码、对象生命周期、ATC、数据访问、短转储、abapGit、传输、重构、RAP、raw_call |
+| ADT    | `sap.adt.*`  | 152 个工具：源码、对象、ATC、数据、短转储、abapGit、调试器、追踪、传输、重构、RAP、服务 |
 
 ## 功能概览
 
@@ -160,7 +160,9 @@ SAP Analytics Cloud。每个工具通过 `operation` 字段分发（`smart-query
 
 ### ADT — `sap.adt.*`
 
-ABAP Development Tools，封装 `abap-adt-api` v8.5.0。支持 Basic 认证（用户名/密码）和 XSUAA（client_credentials 持有者令牌）。共 34 个工具覆盖完整开发周期，外加 `raw_call` 逃逸舱口可调用 ADTClient 其余 ~120 个方法（调试器、追踪、日志点等）。
+ABAP Development Tools，封装 `abap-adt-api` v8.5.0。支持 Basic 认证（用户名/密码）和 XSUAA（client_credentials 持有者令牌）。**152 个工具**——33 个手工编写的带类型 schema 的工具（见下表）+ 119 个自动生成的工具，暴露所有剩余的 `ADTClient` 方法（调试器、追踪、日志点、RAP、重构、服务等）。每个自动生成的工具接受位置参数 `args` 并委托给 `ADTClient.<method>()`。
+
+**手工编写工具（33 个）：**
 
 | 工具                    | 参数                                                                   | 说明                                                                                       |
 | ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -197,7 +199,23 @@ ABAP Development Tools，封装 `abap-adt-api` v8.5.0。支持 Basic 认证（�
 | `rename_preview`        | `objectUrl`, `line`, `startCol`, `endCol`                          | 预览重命名重构                                                                             |
 | `extract_method_preview`| `objectUrl`, `line`, `startCol`, `endCol`                          | 预览抽取方法重构                                                                           |
 | `rap_gen_preview`       | `content`                                                           | 预览 RAP 生成                                                                             |
-| `raw_call`              | `method`, `args?`                                                   | 逃逸舱口——调用任意 ADTClient 方法（调试器、追踪、日志点等）                               |
+
+**自动生成工具（119 个）** — 每个剩余的 `ADTClient` 方法一个。命名规则：camelCase 方法名 → snake_case 工具名（例如 `debuggerStep` → `debugger_step`）。每个接受 `{ args?: unknown[] }`（位置参数）。主要分类：
+
+- **调试器**（17 个）：`debugger_step`、`debugger_set_breakpoints`、`debugger_stack_trace`、`debugger_variables`、`debugger_attach`、`debugger_listen`、`debugger_set_variable_value`、`debugger_create_watchpoint` 等
+- **追踪**（9 个）：`traces_list`、`traces_hit_list`、`traces_statements`、`traces_create_configuration`、`traces_delete` 等
+- **日志点**（7 个）：`create_logpoint`、`delete_logpoint`、`get_log_point_logs`、`get_log_servers` 等
+- **重构**（6 个）：`rename_execute`、`rename_preview`、`extract_method_execute`、`extract_method_preview`、`change_package_preview`、`change_package_execute`
+- **RAP**（7 个）：`rap_gen_generate`、`rap_gen_get_schema`、`rap_gen_get_content`、`rap_gen_validate_initial`、`rap_gen_validate_content`、`rap_gen_is_available`、`rap_gen_publish_service`
+- **服务**（4 个）：`publish_service_binding`、`un_publish_service_binding`、`binding_details`
+- **Git**（7 个）：`git_create_repo`、`git_unlink_repo`、`push_repo`、`stage_repo`、`switch_repo_branch`、`remote_repo_info`、`git_external_repo_info`
+- **ATC**（9 个）：`atc_customizing`、`atc_check_variant`、`atc_users`、`atc_exempt_proposal`、`atc_request_exemption`、`atc_documentation`、`atc_change_contact`、`atc_contact_uri`
+- **传输**（9 个）：`transport_info`、`transport_delete`、`transport_add_user`、`transport_set_owner`、`transport_reference`、`transports_by_config`、`transport_configurations`、`get_transport_configuration`、`set_transports_config`
+- **发现**（7 个）：`load_types`、`object_types`、`adt_discovery`、`adt_core_discovery`、`adt_compatibiliy_graph`、`feature_details`、`collection_feature_details`
+- **数据/DDIC**（8 个）：`ddic_repository_access`、`annotation_definitions`、`get_data_element_properties`、`set_data_element_properties`、`get_domain_properties`、`set_domain_properties`、`object_structure_elements`、`code_completion`
+- **对象**（6 个）：`class_components`、`find_object_path`、`object_registration_info`、`object_enhancements`、`main_programs`、`type_hierarchy`
+- **单元测试**（2 个）：`unit_test_evaluation`、`unit_test_occurrence_markers`
+- **会话**（3 个）：`login`、`logout`、`drop_session`
 
 ## 使用示例
 

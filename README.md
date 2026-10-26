@@ -10,7 +10,7 @@ MCP transport, with every tool namespaced as `sap.<connector>.<tool>`:
 | --------- | ----------- | ------------------------------------------------------------- |
 | RFC       | `sap.rfc.*` | Call BAPIs/function modules, read tables, inspect metadata   |
 | SAC       | `sap.sac.*` | SAP Analytics Cloud stories, models, data export/import, etc. |
-| ADT       | `sap.adt.*` | ABAP source, object lifecycle, ATC, data access, dumps, abapGit, transports, refactoring, RAP, raw_call |
+| ADT       | `sap.adt.*` | 152 tools: source, objects, ATC, data, dumps, abapGit, debugger, traces, transports, refactoring, RAP, services |
 
 ## Prerequisites
 
@@ -96,9 +96,13 @@ OData params (`$top`, `$skip`, `$filter`, `$orderby`, `$select`, `$expand`,
 ### ADT — `sap.adt.*`
 
 ABAP Development Tools, wrapping `abap-adt-api` v8.5.0. Basic auth (user/pass)
-and XSUAA (client_credentials bearer) are both supported. 34 tools covering the
-full development lifecycle, plus a `raw_call` escape hatch for the remaining
-~120 ADTClient methods (debugger, traces, logpoints, etc.).
+and XSUAA (client_credentials bearer) are both supported. **152 tools** — 33
+hand-crafted tools with typed schemas (below) + 119 auto-generated tools that
+expose every remaining `ADTClient` method (debugger, traces, logpoints, RAP,
+refactoring, services, etc.). Each auto-generated tool accepts positional
+`args` and delegates to `ADTClient.<method>()`.
+
+**Hand-crafted tools (33):**
 
 | Tool                   | Parameters                                                                | Description                                                                          |
 | ---------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
@@ -112,7 +116,7 @@ full development lifecycle, plus a `raw_call` escape hatch for the remaining
 | `delete_object`        | `objectUrl`, `lockHandle`, `transport?`                                 | Delete an ABAP object                                                                |
 | `activate`             | `objectUrl`                                                              | Activate an ABAP object                                                              |
 | `object_structure`     | `objectUrl`                                                              | Get structure/metadata of an object                                                  |
-| `inactive_objects`     | —                                                                       | List all inactive objects                                                            |
+| `inactive_objects`      | —                                                                       | List all inactive objects                                                            |
 | `validate_new_object`  | `options`                                                               | Validate object creation parameters                                                   |
 | `where_used`           | `objectUrl`, `line?`, `column?`                                         | Where-used list for an object                                                        |
 | `find_definition`      | `objectUrl`, `source`, `line`, `startCol`, `endCol`                     | Find definition location of a symbol                                                  |
@@ -135,7 +139,26 @@ full development lifecycle, plus a `raw_call` escape hatch for the remaining
 | `rename_preview`       | `objectUrl`, `line`, `startCol`, `endCol`                               | Preview a rename refactoring                                                         |
 | `extract_method_preview` | `objectUrl`, `line`, `startCol`, `endCol`                            | Preview an extract-method refactoring                                                |
 | `rap_gen_preview`      | `content`                                                               | Preview RAP generation from a spec                                                   |
-| `raw_call`             | `method`, `args?`                                                       | Escape hatch — call any ADTClient method (debugger, traces, logpoints, etc.)         |
+
+**Auto-generated tools (119)** — one per remaining `ADTClient` method. Naming
+convention: camelCase method → snake_case tool (e.g. `debuggerStep` →
+`debugger_step`). Each accepts `{ args?: unknown[] }` (positional arguments).
+Notable categories:
+
+- **Debugger** (17): `debugger_step`, `debugger_set_breakpoints`, `debugger_stack_trace`, `debugger_variables`, `debugger_attach`, `debugger_listen`, `debugger_set_variable_value`, `debugger_create_watchpoint`, …
+- **Traces** (9): `traces_list`, `traces_hit_list`, `traces_statements`, `traces_create_configuration`, `traces_delete`, …
+- **Logpoints** (7): `create_logpoint`, `delete_logpoint`, `get_log_point_logs`, `get_log_servers`, …
+- **Refactoring** (6): `rename_execute`, `rename_preview`, `extract_method_execute`, `extract_method_preview`, `change_package_preview`, `change_package_execute`
+- **RAP** (7): `rap_gen_generate`, `rap_gen_get_schema`, `rap_gen_get_content`, `rap_gen_validate_initial`, `rap_gen_validate_content`, `rap_gen_is_available`, `rap_gen_publish_service`
+- **Services** (4): `publish_service_binding`, `un_publish_service_binding`, `binding_details`
+- **Git** (7): `git_create_repo`, `git_unlink_repo`, `push_repo`, `stage_repo`, `switch_repo_branch`, `remote_repo_info`, `git_external_repo_info`
+- **ATC** (9): `atc_customizing`, `atc_check_variant`, `atc_users`, `atc_exempt_proposal`, `atc_request_exemption`, `atc_documentation`, `atc_change_contact`, `atc_contact_uri`
+- **Transports** (9): `transport_info`, `transport_delete`, `transport_add_user`, `transport_set_owner`, `transport_reference`, `transports_by_config`, `transport_configurations`, `get_transport_configuration`, `set_transports_config`
+- **Discovery** (7): `load_types`, `object_types`, `adt_discovery`, `adt_core_discovery`, `adt_compatibiliy_graph`, `feature_details`, `collection_feature_details`
+- **Data/DDIC** (8): `ddic_repository_access`, `annotation_definitions`, `get_data_element_properties`, `set_data_element_properties`, `get_domain_properties`, `set_domain_properties`, `object_structure_elements`, `code_completion`
+- **Objects** (6): `class_components`, `find_object_path`, `object_registration_info`, `object_enhancements`, `main_programs`, `type_hierarchy`
+- **Unit tests** (2): `unit_test_evaluation`, `unit_test_occurrence_markers`
+- **Session** (3): `login`, `logout`, `drop_session`
 
 ## Adding a connector
 
