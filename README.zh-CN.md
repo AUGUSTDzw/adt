@@ -176,6 +176,26 @@ ABAP Development Tools，封装 `abap-adt-api` v8.5.0。**165 个工具**——4
 - SAP Business Application Studio
 - 任何 OAuth2 authorization_code 流程
 
+**设置：**
+```bash
+# 1. 安装 mcp-auth CLI
+npm install -g @mcp-abap-adt/auth-broker-cli
+
+# 2. 在 SAP BTP 中创建服务密钥
+#    - 前往 SAP BTP Cockpit → Subaccounts → Cloud Foundry
+#    - 为您的 ABAP 实例创建服务密钥
+
+# 3. 获取令牌
+mcp-auth --service-key ./service-key.json --output ./mcp.env --type abap
+
+# 4. 配置 MCP 服务器
+export SAP_ADT_AUTHMODE=jwt
+export SAP_ADT_TOKEN=$(grep SAP_JWT_TOKEN mcp.env | cut -d= -f2)
+
+# 5. 启动服务器
+npm start
+```
+
 `@mcp-abap-adt/auth-broker` 包已包含，用于支持浏览器登录和令牌刷新的高级 SSO 场景。
 
 **手工编写工具（49 个）：**

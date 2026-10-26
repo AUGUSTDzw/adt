@@ -115,6 +115,26 @@ refactoring, services, etc.). Each auto-generated tool accepts positional
 - SAP Business Application Studio
 - Any OAuth2 authorization_code flow
 
+**Setup:**
+```bash
+# 1. Install mcp-auth CLI
+npm install -g @mcp-abap-adt/auth-broker-cli
+
+# 2. Create a service key in SAP BTP
+#    - Go to SAP BTP Cockpit → Subaccounts → Cloud Foundry
+#    - Create a service key for your ABAP instance
+
+# 3. Obtain a token
+mcp-auth --service-key ./service-key.json --output ./mcp.env --type abap
+
+# 4. Configure the MCP server
+export SAP_ADT_AUTHMODE=jwt
+export SAP_ADT_TOKEN=$(grep SAP_JWT_TOKEN mcp.env | cut -d= -f2)
+
+# 5. Start the server
+npm start
+```
+
 The `@mcp-abap-adt/auth-broker` package is included for advanced SSO scenarios
 with browser-based login and token refresh.
 

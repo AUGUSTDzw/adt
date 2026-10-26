@@ -79,7 +79,12 @@ export class AdtClient {
     } else if (authMode === 'jwt') {
       const token = String(cfg.token ?? cfg.jwtToken ?? '');
       if (!token) {
-        throw new Error('jwt auth requires a token (set SAP_ADT_TOKEN or use mcp-auth to obtain one)');
+        // No token provided - user must obtain one via mcp-auth CLI or other means
+        throw new Error(
+          'jwt auth requires a token. Use `mcp-auth --service-key ./service-key.json --output ./mcp.env --type abap` ' +
+          'to obtain a token, then set SAP_ADT_TOKEN=<token>. ' +
+          'See https://github.com/fr0ster/mcp-abap-adt for the mcp-auth CLI.',
+        );
       }
       // The lib calls this fetcher on login and sets `auth: { bearer }`.
       // The token is pre-provided (e.g., via SAP_ADT_TOKEN env var or mcp-auth CLI).
