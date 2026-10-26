@@ -10,7 +10,7 @@ MCP transport, with every tool namespaced as `sap.<connector>.<tool>`:
 | --------- | ----------- | ------------------------------------------------------------- |
 | RFC       | `sap.rfc.*` | Call BAPIs/function modules, read tables, inspect metadata   |
 | SAC       | `sap.sac.*` | SAP Analytics Cloud stories, models, data export/import, etc. |
-| ADT       | `sap.adt.*` | ABAP source, activation, unit tests, ATC, transports          |
+| ADT       | `sap.adt.*` | ABAP source, object lifecycle, ATC, data access, dumps, abapGit, transports, refactoring, RAP, raw_call |
 
 ## Prerequisites
 
@@ -96,17 +96,46 @@ OData params (`$top`, `$skip`, `$filter`, `$orderby`, `$select`, `$expand`,
 ### ADT — `sap.adt.*`
 
 ABAP Development Tools, wrapping `abap-adt-api` v8.5.0. Basic auth (user/pass)
-and XSUAA (client_credentials bearer) are both supported.
+and XSUAA (client_credentials bearer) are both supported. 34 tools covering the
+full development lifecycle, plus a `raw_call` escape hatch for the remaining
+~120 ADTClient methods (debugger, traces, logpoints, etc.).
 
-| Tool                 | Parameters                                                                | Description                                                                          |
-| -------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `read_source`        | `objectUrl`                                                              | Read ABAP source for an object                                                       |
-| `write_source`       | `objectUrl`, `content`                                                   | Write ABAP source (acquires/releases a lock)                                         |
-| `search_objects`     | `query`                                                                  | Search ABAP repository objects                                                       |
-| `activate`           | `objectUrl`                                                              | Activate an ABAP object                                                              |
-| `run_unit_tests`     | `objectUrl`                                                              | Run ABAP Unit tests for an object                                                    |
-| `run_atc`            | `objectUrl`, `variant?`                                                  | Run ABAP Test Cockpit (`variant` defaults to `default`)                              |
-| `manage_transports`  | `action` (`add`/`release`/`import`), `transportId`, `objectUrl?`, `requestText?`, `devclass?` | `add` creates a transport for an object (needs `objectUrl`+`devclass`); `release` releases it; `import` is STMS-only (use transaction STMS) |
+| Tool                   | Parameters                                                                | Description                                                                          |
+| ---------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `read_source`          | `objectUrl`                                                              | Read ABAP source for an object                                                       |
+| `write_source`         | `objectUrl`, `content`                                                   | Write ABAP source (acquires/releases a lock)                                         |
+| `syntax_check`         | `objectUrl`, `mainUrl?`, `content?`, `mainProgram?`                      | Check ABAP syntax                                                                    |
+| `pretty_print`         | `source`                                                                 | Format ABAP source via SAP pretty printer                                            |
+| `revisions`            | `objectUrl`                                                              | List version history of an object                                                    |
+| `search_objects`       | `query`                                                                 | Search ABAP repository objects                                                       |
+| `create_object`        | `objtype`, `name`, `parentName`, `description`, `parentPath`, `responsible?`, `transport?` | Create a new ABAP object                                                 |
+| `delete_object`        | `objectUrl`, `lockHandle`, `transport?`                                 | Delete an ABAP object                                                                |
+| `activate`             | `objectUrl`                                                              | Activate an ABAP object                                                              |
+| `object_structure`     | `objectUrl`                                                              | Get structure/metadata of an object                                                  |
+| `inactive_objects`     | —                                                                       | List all inactive objects                                                            |
+| `validate_new_object`  | `options`                                                               | Validate object creation parameters                                                   |
+| `where_used`           | `objectUrl`, `line?`, `column?`                                         | Where-used list for an object                                                        |
+| `find_definition`      | `objectUrl`, `source`, `line`, `startCol`, `endCol`                     | Find definition location of a symbol                                                  |
+| `run_class`            | `className`                                                             | Run an ABAP console class (IF_OO_ADT_CLASSRUN)                                        |
+| `run_unit_tests`       | `objectUrl`                                                              | Run ABAP Unit tests                                                                  |
+| `run_atc`              | `objectUrl`, `variant?`                                                  | Run ABAP Test Cockpit (`variant` defaults to `default`)                             |
+| `atc_worklists`        | —                                                                       | List ATC worklists                                                                   |
+| `atc_fix_proposals`    | `objectUrl`, `source`, `line`, `column`                                 | Get ATC quickfix proposals                                                           |
+| `table_contents`       | `ddicEntityName`, `rowNumber?`, `sqlQuery?`                              | Read table/CDS data via ADT Data Preview (no RFC SDK)                                |
+| `run_query`            | `sqlQuery`, `rowNumber?`                                                | Run OpenSQL SELECT via ADT Data Preview                                              |
+| `ddic_element`         | `path` (string or string[])                                             | Get DDIC element metadata                                                             |
+| `package_search_help`  | `type`, `name?`                                                          | F4-style value help for packages                                                     |
+| `list_dumps`           | `query?`                                                                | List ST22 short dumps                                                                |
+| `feeds`                | —                                                                       | List available ADT feeds                                                             |
+| `manage_transports`    | `action` (`add`/`release`/`import`), `transportId`, `objectUrl?`, `requestText?`, `devclass?` | `add` creates a transport; `release` releases it; `import` is STMS-only |
+| `transport_details`    | `transportNumber`                                                       | Get transport request details                                                        |
+| `user_transports`      | `user`                                                                  | List transports for a user                                                           |
+| `git_repos`            | —                                                                       | List abapGit repositories                                                            |
+| `git_pull`             | `repoId`, `branch?`, `transport?`, `user?`, `password?`                 | Pull an abapGit repository                                                           |
+| `rename_preview`       | `objectUrl`, `line`, `startCol`, `endCol`                               | Preview a rename refactoring                                                         |
+| `extract_method_preview` | `objectUrl`, `line`, `startCol`, `endCol`                            | Preview an extract-method refactoring                                                |
+| `rap_gen_preview`      | `content`                                                               | Preview RAP generation from a spec                                                   |
+| `raw_call`             | `method`, `args?`                                                       | Escape hatch — call any ADTClient method (debugger, traces, logpoints, etc.)         |
 
 ## Adding a connector
 

@@ -145,4 +145,203 @@ export class AdtClient {
       "manageTransports('import') is an STMS operation, not exposed via ADT REST — use SAP transaction STMS",
     );
   }
+
+  // ─── Source analysis ──────────────────────────────────────────────────────
+
+  async syntaxCheck(objectUrl: string, mainUrl?: string, content?: string, mainProgram?: string): Promise<unknown> {
+    if (mainUrl && content) return this.adt.syntaxCheck(objectUrl, mainUrl, content, mainProgram);
+    return this.adt.syntaxCheck(objectUrl);
+  }
+
+  async prettyPrint(source: string): Promise<string> {
+    return this.adt.prettyPrinter(source);
+  }
+
+  async revisions(objectUrl: string): Promise<unknown> {
+    return this.adt.revisions(objectUrl);
+  }
+
+  // ─── Object lifecycle ────────────────────────────────────────────────────
+
+  async createObject(objtype: string, name: string, parentName: string, description: string, parentPath: string, responsible?: string, transport?: string): Promise<void> {
+    return this.adt.createObject(objtype as never, name, parentName, description, parentPath, responsible, transport);
+  }
+
+  async deleteObject(objectUrl: string, lockHandle: string, transport?: string): Promise<void> {
+    return this.adt.deleteObject(objectUrl, lockHandle, transport);
+  }
+
+  async objectStructure(objectUrl: string): Promise<unknown> {
+    return this.adt.objectStructure(objectUrl);
+  }
+
+  async inactiveObjects(): Promise<unknown> {
+    return this.adt.inactiveObjects();
+  }
+
+  async validateNewObject(options: Record<string, unknown>): Promise<unknown> {
+    return this.adt.validateNewObject(options as never);
+  }
+
+  // ─── Analysis & navigation ────────────────────────────────────────────────
+
+  async whereUsed(objectUrl: string, line?: number, column?: number): Promise<unknown> {
+    return this.adt.usageReferences(objectUrl, line, column);
+  }
+
+  async findDefinition(objectUrl: string, source: string, line: number, startCol: number, endCol: number): Promise<unknown> {
+    return this.adt.findDefinition(objectUrl, source, line, startCol, endCol);
+  }
+
+  async runClass(className: string): Promise<string> {
+    return this.adt.runClass(className);
+  }
+
+  async objectTypes(): Promise<unknown> {
+    return this.adt.objectTypes();
+  }
+
+  async nodeContents(parentType: string, parentName?: string, userName?: string): Promise<unknown> {
+    return this.adt.nodeContents(parentType as never, parentName, userName);
+  }
+
+  async mainPrograms(includeUrl: string): Promise<unknown> {
+    return this.adt.mainPrograms(includeUrl);
+  }
+
+  async systemUsers(): Promise<unknown> {
+    return this.adt.systemUsers();
+  }
+
+  // ─── ATC (extended) ───────────────────────────────────────────────────────
+
+  async atcWorklists(): Promise<unknown> {
+    return (this.adt as any).atcWorklists();
+  }
+
+  async atcFixProposals(objectUrl: string, source: string, line: number, column: number): Promise<unknown> {
+    return this.adt.fixProposals(objectUrl, source, line, column);
+  }
+
+  async atcCustomizing(): Promise<unknown> {
+    return (this.adt as any).atcCustomizing();
+  }
+
+  // ─── Data access ──────────────────────────────────────────────────────────
+
+  async tableContents(ddicEntityName: string, rowNumber?: number, sqlQuery?: string): Promise<unknown> {
+    return this.adt.tableContents(ddicEntityName, rowNumber, undefined, sqlQuery);
+  }
+
+  async runQuery(sqlQuery: string, rowNumber?: number): Promise<unknown> {
+    return this.adt.runQuery(sqlQuery, rowNumber);
+  }
+
+  async ddicElement(path: string | string[]): Promise<unknown> {
+    return this.adt.ddicElement(path);
+  }
+
+  async packageSearchHelp(type: string, name?: string): Promise<unknown> {
+    return this.adt.packageSearchHelp(type as never, name);
+  }
+
+  // ─── Runtime errors ───────────────────────────────────────────────────────
+
+  async listDumps(query?: string): Promise<unknown> {
+    return this.adt.dumps(query);
+  }
+
+  async feeds(): Promise<unknown> {
+    return this.adt.feeds();
+  }
+
+  // ─── abapGit ──────────────────────────────────────────────────────────────
+
+  async gitRepos(): Promise<unknown> {
+    return this.adt.gitRepos();
+  }
+
+  async gitPull(repoId: string, branch?: string, transport?: string, user?: string, password?: string): Promise<unknown> {
+    return this.adt.gitPullRepo(repoId, branch, transport, user, password);
+  }
+
+  async gitCreate(packageName: string, repoUrl: string, branch?: string, transport?: string, user?: string, password?: string): Promise<unknown> {
+    return this.adt.gitCreateRepo(packageName, repoUrl, branch, transport, user, password);
+  }
+
+  async gitUnlink(repoId: string): Promise<void> {
+    return this.adt.gitUnlinkRepo(repoId);
+  }
+
+  // ─── Transports (extended) ────────────────────────────────────────────────
+
+  async transportDetails(transportNumber: string): Promise<unknown> {
+    return this.adt.transportDetails(transportNumber);
+  }
+
+  async userTransports(user: string): Promise<unknown> {
+    return this.adt.userTransports(user, true);
+  }
+
+  async transportDelete(transportNumber: string): Promise<void> {
+    return this.adt.transportDelete(transportNumber);
+  }
+
+  // ─── Refactoring ──────────────────────────────────────────────────────────
+
+  async renameEvaluate(objectUrl: string, line: number, startCol: number, endCol: number): Promise<unknown> {
+    return this.adt.renameEvaluate(objectUrl, line, startCol, endCol);
+  }
+
+  async extractMethodEvaluate(objectUrl: string, line: number, startCol: number, endCol: number): Promise<unknown> {
+    return (this.adt as any).extractMethodEvaluate(objectUrl, line, startCol, endCol);
+  }
+
+  // ─── RAP generation ───────────────────────────────────────────────────────
+
+  async rapGenPreview(content: Record<string, unknown>): Promise<unknown> {
+    return (this.adt as any).rapGenPreview(content);
+  }
+
+  async rapGenGenerate(content: Record<string, unknown>): Promise<unknown> {
+    return (this.adt as any).rapGenGenerate(content);
+  }
+
+  // ─── Services ─────────────────────────────────────────────────────────────
+
+  async fetchServiceDetails(serviceUrl: string): Promise<unknown> {
+    return (this.adt as any).bindingDetails(serviceUrl);
+  }
+
+  // ─── Discovery ────────────────────────────────────────────────────────────
+
+  async adtDiscovery(): Promise<unknown> {
+    return this.adt.adtDiscovery();
+  }
+
+  async featureDetails(title: string): Promise<unknown> {
+    return this.adt.featureDetails(title);
+  }
+
+  // ─── Text elements ────────────────────────────────────────────────────────
+
+  async getTextElements(objectUrl: string): Promise<unknown> {
+    return this.adt.getTextElements(objectUrl);
+  }
+
+  async setTextElements(objectUrl: string, elements: unknown): Promise<unknown> {
+    return (this.adt as any).setTextElements(objectUrl, elements);
+  }
+
+  // ─── Escape hatch ─────────────────────────────────────────────────────────
+  // Generic dispatch to any ADTClient method — covers the full ~150 method
+  // API surface without a hand-written wrapper for each. Used by the `raw_call`
+  // tool so the LLM can reach niche endpoints (debugger, traces, logpoints,
+  // domain properties, etc.) without expanding the tool registry further.
+
+  async callRaw(method: string, args: unknown[] = []): Promise<unknown> {
+    const fn = (this.adt as unknown as Record<string, (...a: unknown[]) => unknown>)[method];
+    if (typeof fn !== 'function') throw new Error(`ADTClient has no method '${method}'`);
+    return fn.apply(this.adt, args);
+  }
 }

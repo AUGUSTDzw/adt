@@ -8,7 +8,7 @@
 | ------ | ------------ | ----------------------------------------------------------- |
 | RFC    | `sap.rfc.*`  | 调用 BAPI/函数模块、读取表数据、查询函数元数据             |
 | SAC    | `sap.sac.*`  | SAP Analytics Cloud 故事、模型、数据导入导出等              |
-| ADT    | `sap.adt.*`  | ABAP 源码读写、激活、单元测试、ATC 检查、传输管理           |
+| ADT    | `sap.adt.*`  | ABAP 源码、对象生命周期、ATC、数据访问、短转储、abapGit、传输、重构、RAP、raw_call |
 
 ## 功能概览
 
@@ -160,17 +160,44 @@ SAP Analytics Cloud。每个工具通过 `operation` 字段分发（`smart-query
 
 ### ADT — `sap.adt.*`
 
-ABAP Development Tools，封装 `abap-adt-api` v8.5.0。支持 Basic 认证（用户名/密码）和 XSUAA（client_credentials 持有者令牌）。
+ABAP Development Tools，封装 `abap-adt-api` v8.5.0。支持 Basic 认证（用户名/密码）和 XSUAA（client_credentials 持有者令牌）。共 34 个工具覆盖完整开发周期，外加 `raw_call` 逃逸舱口可调用 ADTClient 其余 ~120 个方法（调试器、追踪、日志点等）。
 
-| 工具                | 参数                                                                   | 说明                                                                                       |
-| ------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `read_source`       | `objectUrl`                                                            | 读取 ABAP 对象源码                                                                         |
-| `write_source`      | `objectUrl`, `content`                                                | 写入 ABAP 源码（自动加锁/解锁）                                                            |
-| `search_objects`    | `query`                                                               | 搜索 ABAP 仓库对象                                                                         |
-| `activate`          | `objectUrl`                                                           | 激活 ABAP 对象                                                                             |
-| `run_unit_tests`    | `objectUrl`                                                           | 对对象运行 ABAP 单元测试                                                                   |
-| `run_atc`           | `objectUrl`, `variant?`                                               | 运行 ABAP Test Cockpit（`variant` 默认 `default`）                                         |
-| `manage_transports` | `action`（`add`/`release`/`import`）, `transportId`, `objectUrl?`, `requestText?`, `devclass?` | `add` 为对象创建传输请求（需 `objectUrl`+`devclass`）；`release` 释放传输；`import` 是 STMS 操作（请用事务 STMS） |
+| 工具                    | 参数                                                                   | 说明                                                                                       |
+| ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `read_source`           | `objectUrl`                                                            | 读取 ABAP 对象源码                                                                         |
+| `write_source`          | `objectUrl`, `content`                                                | 写入 ABAP 源码（自动加锁/解锁）                                                            |
+| `syntax_check`          | `objectUrl`, `mainUrl?`, `content?`, `mainProgram?`                  | 检查 ABAP 语法                                                                             |
+| `pretty_print`          | `source`                                                              | 通过 SAP 格式化器格式化源码                                                                |
+| `revisions`             | `objectUrl`                                                           | 列出对象版本历史                                                                           |
+| `search_objects`        | `query`                                                              | 搜索 ABAP 仓库对象                                                                         |
+| `create_object`         | `objtype`, `name`, `parentName`, `description`, `parentPath`, `responsible?`, `transport?` | 创建新的 ABAP 对象                                                    |
+| `delete_object`         | `objectUrl`, `lockHandle`, `transport?`                              | 删除 ABAP 对象                                                                             |
+| `activate`              | `objectUrl`                                                           | 激活 ABAP 对象                                                                             |
+| `object_structure`      | `objectUrl`                                                           | 获取对象结构/元数据                                                                        |
+| `inactive_objects`      | —                                                                    | 列出所有未激活对象                                                                         |
+| `validate_new_object`   | `options`                                                            | 创建前验证对象参数                                                                         |
+| `where_used`            | `objectUrl`, `line?`, `column?`                                      | 对象使用位置列表                                                                           |
+| `find_definition`       | `objectUrl`, `source`, `line`, `startCol`, `endCol`                  | 查找符号定义位置                                                                           |
+| `run_class`             | `className`                                                          | 运行 ABAP 控制台类（IF_OO_ADT_CLASSRUN）                                                  |
+| `run_unit_tests`        | `objectUrl`                                                           | 对对象运行 ABAP 单元测试                                                                   |
+| `run_atc`               | `objectUrl`, `variant?`                                              | 运行 ABAP Test Cockpit（`variant` 默认 `default`）                                         |
+| `atc_worklists`         | —                                                                    | 列出 ATC 工作列表                                                                          |
+| `atc_fix_proposals`     | `objectUrl`, `source`, `line`, `column`                             | 获取 ATC 快速修复方案                                                                      |
+| `table_contents`        | `ddicEntityName`, `rowNumber?`, `sqlQuery?`                         | 通过 ADT Data Preview 读取表/CDS 数据（无需 RFC SDK）                                      |
+| `run_query`             | `sqlQuery`, `rowNumber?`                                            | 通过 ADT Data Preview 运行 OpenSQL 查询                                                   |
+| `ddic_element`          | `path`（字符串或字符串数组）                                          | 获取 DDIC 元素元数据                                                                       |
+| `package_search_help`   | `type`, `name?`                                                     | 包的 F4 值帮助                                                                             |
+| `list_dumps`            | `query?`                                                            | 列出 ST22 短转储                                                                          |
+| `feeds`                 | —                                                                   | 列出可用的 ADT Feed                                                                       |
+| `manage_transports`     | `action`（`add`/`release`/`import`）, `transportId`, `objectUrl?`, `requestText?`, `devclass?` | `add` 创建传输请求；`release` 释放传输；`import` 是 STMS 操作（请用事务 STMS） |
+| `transport_details`     | `transportNumber`                                                   | 获取传输请求详情                                                                           |
+| `user_transports`       | `user`                                                              | 列出用户的传输                                                                             |
+| `git_repos`             | —                                                                   | 列出 abapGit 仓库                                                                         |
+| `git_pull`              | `repoId`, `branch?`, `transport?`, `user?`, `password?`             | 拉取 abapGit 仓库                                                                         |
+| `rename_preview`        | `objectUrl`, `line`, `startCol`, `endCol`                          | 预览重命名重构                                                                             |
+| `extract_method_preview`| `objectUrl`, `line`, `startCol`, `endCol`                          | 预览抽取方法重构                                                                           |
+| `rap_gen_preview`       | `content`                                                           | 预览 RAP 生成                                                                             |
+| `raw_call`              | `method`, `args?`                                                   | 逃逸舱口——调用任意 ADTClient 方法（调试器、追踪、日志点等）                               |
 
 ## 使用示例
 
