@@ -10,12 +10,22 @@
 
         "SAP_ADT_BASEURL": "https://sapdev.example.com:44300",
         "SAP_ADT_AUTHMODE": "sso",
-        "SAP_ADT_SSO_TYPE": "spnego",
+        "SAP_ADT_SSO_TYPE": "spnego,sso2,client_credentials",
         "SAP_ADT_CLIENT": "100",
+
         "SAP_ADT_KERBEROS_SERVICE": "HTTP/sapdev.example.com",
         "SAP_ADT_KERBEROS_REALM": "EXAMPLE.COM",
         "SAP_ADT_KERBEROS_KEYTAB": "C:\\sap\\sap.keytab",
         "SAP_ADT_KERBEROS_PRINCIPAL": "SAPSERVICE/mcp@EXAMPLE.COM",
+
+        "SAP_ADT_PSE_CERT": "C:\\sap\\pse_cert.pem",
+        "SAP_ADT_PSE_KEY": "C:\\sap\\pse_key.pem",
+        "SAP_ADT_SSO_USER": "MCPUSER",
+        "SAP_ADT_SSO_SYSTEM": "DEV",
+
+        "SAP_ADT_UAA_URL": "https://sub.authentication.region.ondemand.com",
+        "SAP_ADT_CLIENT_ID": "client-id",
+        "SAP_ADT_CLIENT_SECRET": "client-secret",
 
         "SAP_RFC_ASHOST": "sapdev.example.com",
         "SAP_RFC_SYSNR": "00",

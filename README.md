@@ -272,7 +272,11 @@ Windows domain service accounts (the LSA manages the TGT).
 Interactive flows (`oidc_browser`, `oidc_device`, `saml2_*`, `passcode`) need
 human consent by protocol design.
 
-**Full MCP configuration (unattended SPNEGO + RFC SNC + GUI attach):**
+**Full MCP configuration (unattended SSO with automatic fallback):**
+
+`SAP_ADT_SSO_TYPE` is a comma-separated candidate list — tried in order on
+startup, and on repeated renewal failure the connector switches to the next.
+Configure all candidates' credentials; the unusable ones are silently skipped.
 
 Build first (`npm run build`), then point your MCP client at this config:
 
@@ -288,12 +292,22 @@ Build first (`npm run build`), then point your MCP client at this config:
 
         "SAP_ADT_BASEURL": "https://sapdev.example.com:44300",
         "SAP_ADT_AUTHMODE": "sso",
-        "SAP_ADT_SSO_TYPE": "spnego",
+        "SAP_ADT_SSO_TYPE": "spnego,sso2,client_credentials",
         "SAP_ADT_CLIENT": "100",
+
         "SAP_ADT_KERBEROS_SERVICE": "HTTP/sapdev.example.com",
         "SAP_ADT_KERBEROS_REALM": "EXAMPLE.COM",
         "SAP_ADT_KERBEROS_KEYTAB": "/etc/sap/sap.keytab",
         "SAP_ADT_KERBEROS_PRINCIPAL": "SAPSERVICE/mcp@EXAMPLE.COM",
+
+        "SAP_ADT_PSE_CERT": "/etc/sap/pse_cert.pem",
+        "SAP_ADT_PSE_KEY": "/etc/sap/pse_key.pem",
+        "SAP_ADT_SSO_USER": "MCPUSER",
+        "SAP_ADT_SSO_SYSTEM": "DEV",
+
+        "SAP_ADT_UAA_URL": "https://sub.authentication.region.ondemand.com",
+        "SAP_ADT_CLIENT_ID": "client-id",
+        "SAP_ADT_CLIENT_SECRET": "client-secret",
 
         "SAP_RFC_ASHOST": "sapdev.example.com",
         "SAP_RFC_SYSNR": "00",
@@ -311,12 +325,10 @@ Build first (`npm run build`), then point your MCP client at this config:
 }
 ```
 
-Swap the ADT env block to switch SSO flavour:
-
-- **MYSAPSSO2**: `SAP_ADT_SSO_TYPE=sso2`, `SAP_ADT_PSE_CERT`, `SAP_ADT_PSE_KEY`,
-  `SAP_ADT_SSO_USER`, `SAP_ADT_SSO_SYSTEM`.
-- **client_credentials (BTP ABAP)**: `SAP_ADT_SSO_TYPE=client_credentials`,
-  `SAP_ADT_UAA_URL`, `SAP_ADT_CLIENT_ID`, `SAP_ADT_CLIENT_SECRET`.
+One config adapts to every environment: Windows domain account → SPNEGO wins;
+Linux with keytab → SPNEGO via auto `kinit`; no Kerberos but PSE present →
+`sso2`; neither → `client_credentials`. Remove the candidates you don't have
+credentials for (they're skipped silently when their config is incomplete).
 
 Client config locations:
 - **Claude Desktop**: `%APPDATA%\Claude\claude_desktop_config.json` (merge `mcpServers`)
