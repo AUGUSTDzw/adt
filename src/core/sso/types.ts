@@ -108,4 +108,12 @@ export interface SsoAuthConfig {
   kerberosRealm?: string;
   /** Service principal, e.g. `HTTP/host.example.com`. Default derived from baseUrl. */
   kerberosService?: string;
+  /**
+   * Keytab file path. When set with `kerberosPrincipal`, the connector runs
+   * `kinit -kt <keytab> <principal>` automatically (throttled to 7h) — no
+   * manual `kinit` needed. Omit on Windows domain service accounts (LSA TGT).
+   */
+  kerberosKeytab?: string;
+  /** Principal to acquire a TGT for (keytab mode), e.g. `SAPSERVICE/mcp@REALM`. */
+  kerberosPrincipal?: string;
 }

@@ -10,11 +10,17 @@
  * Windows integrated auth working) when it is absent.
  */
 
+import { ensureKerberosTgt } from './kerberos-init.js';
+
 export interface SpnegoConfig {
   /** Service principal, e.g. `HTTP/host.example.com`. Derived from `baseUrl` when omitted. */
   service?: string;
   /** Kerberos realm (optional; appended to the service when absent). */
   realm?: string;
+  /** Keytab file path — when set with `principal`, a TGT is acquired automatically. */
+  keytab?: string;
+  /** Principal to acquire a TGT for (keytab mode). */
+  principal?: string;
 }
 
 interface KerberosClient {
@@ -77,6 +83,9 @@ export function wrapSpnego(apReq: Buffer): Buffer {
  * Throws a descriptive error when `kerberos` is not installed.
  */
 export async function acquireSpnegoToken(config: SpnegoConfig = {}): Promise<string> {
+  // Bootstrap/renew a TGT from a keytab when configured; otherwise rely on
+  // an existing TGT (Windows LSA / prior kinit).
+  await ensureKerberosTgt(config);
   const kerberos = loadKerberos();
   if (!kerberos) {
     throw new Error(

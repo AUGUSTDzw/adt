@@ -179,6 +179,8 @@ export class AdtClient {
       destination: str('destination') ?? this.destination,
       kerberosRealm: str('kerberosRealm'),
       kerberosService: str('kerberosService'),
+      kerberosKeytab: str('kerberosKeytab'),
+      kerberosPrincipal: str('kerberosPrincipal'),
     };
   }
 

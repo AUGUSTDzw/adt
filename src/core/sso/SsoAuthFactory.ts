@@ -350,6 +350,8 @@ export function createSsoAuth(cfg: SsoAuthConfig): SsoAuthResult {
     const spnegoCfg: SpnegoConfig = {
       service: cfg.kerberosService,
       realm: cfg.kerberosRealm,
+      keytab: cfg.kerberosKeytab,
+      principal: cfg.kerberosPrincipal,
     };
     return {
       type: 'spnego',
