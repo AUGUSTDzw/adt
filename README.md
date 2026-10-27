@@ -218,7 +218,10 @@ help (`value_help`).
 | `sso` | `SAP_ADT_SSO_TYPE` | Unified SSO — see below |
 
 **SSO mode (`SAP_ADT_AUTHMODE=sso`)** supports every SSO flavour via
-`SAP_ADT_SSO_TYPE`:
+`SAP_ADT_SSO_TYPE`. Accepts a **comma-separated list for automatic fallback**
+— candidates are tried in order on startup (first valid one wins); on repeated
+renewal failure the connector switches to the next candidate and rebuilds the
+client. Example: `SAP_ADT_SSO_TYPE=spnego,sso2,client_credentials`.
 
 | `SAP_ADT_SSO_TYPE` | Grant / mechanism | Required config |
 |--------------------|-------------------|-----------------|

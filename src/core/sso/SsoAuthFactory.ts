@@ -33,7 +33,7 @@ import {
 } from '@mcp-abap-adt/auth-providers';
 import type { ITokenProvider, IAuthorizationStrategy, IAssertionReplayStore } from '@mcp-abap-adt/interfaces-auth';
 import type { OidcCallbackResult } from '@mcp-abap-adt/auth-providers';
-import type { SsoAuthConfig, LoginStrategy } from './types.js';
+import type { SsoAuthConfig, SsoAuthType, LoginStrategy } from './types.js';
 import { generateLogonTicket, decodeLogonTicket, formatDecodedTicket } from './sap-logon-ticket.js';
 import { acquireSpnegoToken, type SpnegoConfig } from './spnego.js';
 
@@ -382,6 +382,70 @@ export function createSsoAuth(cfg: SsoAuthConfig): SsoAuthResult {
     fetcher: async () => {
       const result = await provider.getTokens();
       return result.authorizationToken;
+    },
+  };
+}
+
+/**
+ * SsoAuthChain — ordered list of SSO candidates with automatic fallback.
+ *
+ * `SAP_ADT_SSO_TYPE` accepts a comma-separated list (e.g.
+ * `spnego,sso2,client_credentials`). The chain tries each in order on
+ * `init()`; the first candidate whose credentials validate becomes active.
+ * When the active candidate fails to renew at runtime, `switchToNext()`
+ * advances to the next candidate and the caller rebuilds its client.
+ *
+ * Header-based candidates (spnego/sso2) are validated eagerly (spnego
+ * acquires a token, sso2 already has headers). Token providers
+ * (client_credentials/oidc_*) are accepted lazily — they probe the network
+ * only on the first fetcher call — so they never block chain init.
+ */
+export interface SsoAuthChain {
+  readonly candidates: SsoAuthType[];
+  /** The active auth result (null until a candidate succeeds). */
+  current: SsoAuthResult | null;
+  /** Try every candidate in order; sets `current` to the first that works. */
+  init(): Promise<void>;
+  /** Advance past the current candidate. Returns false if exhausted. */
+  switchToNext(): Promise<boolean>;
+}
+
+export function createSsoAuthChain(types: SsoAuthType[], cfg: SsoAuthConfig): SsoAuthChain {
+  if (types.length === 0) throw new Error('SSO chain requires at least one candidate type');
+  const state: { idx: number; current: SsoAuthResult | null } = { idx: -1, current: null };
+
+  async function tryAt(i: number): Promise<boolean> {
+    const type = types[i];
+    if (!type) return false;
+    try {
+      const result = createSsoAuth({ ...cfg, type });
+      if (result.prepare) await result.prepare(); // validate header-based now
+      state.idx = i;
+      state.current = result;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return {
+    candidates: types,
+    get current() { return state.current; },
+    set current(v: SsoAuthResult | null) { state.current = v; },
+    async init() {
+      for (let i = 0; i < types.length; i++) {
+        if (await tryAt(i)) return;
+      }
+      throw new Error(
+        `All SSO candidates failed: ${types.join(', ')}. ` +
+          'Check TGT/keytab, PSE key, or OAuth client credentials.',
+      );
+    },
+    async switchToNext() {
+      for (let i = state.idx + 1; i < types.length; i++) {
+        if (await tryAt(i)) return true;
+      }
+      return false;
     },
   };
 }

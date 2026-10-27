@@ -38,7 +38,7 @@ import { refreshThenLogin } from '@mcp-abap-adt/auth-providers';
 import { InMemorySessionStore } from './auth/InMemorySessionStore.js';
 import { EnvServiceKeyStore } from './auth/EnvServiceKeyStore.js';
 import { BrowserAuthStrategy } from './auth/BrowserAuthStrategy.js';
-import { createSsoAuth, type SsoAuthResult } from '../../core/sso/SsoAuthFactory.js';
+import { createSsoAuthChain, type SsoAuthChain, type SsoAuthResult } from '../../core/sso/SsoAuthFactory.js';
 import type { SsoAuthConfig, SsoAuthType } from '../../core/sso/types.js';
 
 export class AdtClient {
@@ -50,7 +50,10 @@ export class AdtClient {
   private readonly client: string | undefined;
   private readonly language: string | undefined;
   private tokenFetcher: (() => Promise<string>) | null;
-  private ssoAuth: SsoAuthResult | null = null;
+  private ssoTypes: SsoAuthType[] = [];
+  private ssoCfg?: SsoAuthConfig;
+  private ssoChain?: SsoAuthChain;
+  private ssoFailCount = 0;
   private ssoHeaders: Record<string, string> | null = null;
   private ssoTimer?: ReturnType<typeof setInterval>;
 
@@ -116,10 +119,12 @@ export class AdtClient {
         });
       }
     } else if (this.authMode === 'sso') {
-      const ssoType = String(cfg.ssoType ?? cfg.ssotype ?? '') as SsoAuthType;
-      if (!ssoType) throw new Error('sso auth requires ssoType (e.g. oidc_browser, sso2, spnego)');
-      const ssoCfg = this.buildSsoConfig(cfg, ssoType);
-      this.ssoAuth = createSsoAuth(ssoCfg);
+      const raw = String(cfg.ssoType ?? cfg.ssotype ?? '');
+      this.ssoTypes = raw.split(',').map((s) => s.trim()).filter(Boolean) as SsoAuthType[];
+      if (this.ssoTypes.length === 0) {
+        throw new Error('sso auth requires ssoType (e.g. spnego,sso2 — comma-separated for auto-fallback)');
+      }
+      this.ssoCfg = this.buildSsoConfig(cfg, this.ssoTypes[0]);
     } else {
       const user = String(cfg.user ?? '');
       const pass = String(cfg.pass ?? '');
@@ -187,7 +192,7 @@ export class AdtClient {
   /**
    * Initialize the ADTClient (called once before first use).
    * For JWT auth without a token, this triggers browser login.
-   * For SSO header auth (sso2/spnego), headers are prepared here.
+   * For SSO, the candidate chain is tried in order — the first valid one wins.
    */
   async init(): Promise<void> {
     if (this.adt) return; // Already initialized
@@ -198,30 +203,40 @@ export class AdtClient {
       this.tokenFetcher = async () => token;
     }
 
-    if (this.authMode === 'sso' && this.ssoAuth) {
-      // SPNEGO: prepare the Negotiate header asynchronously.
-      if (this.ssoAuth.prepare) {
-        this.ssoHeaders = await this.ssoAuth.prepare();
-      } else if (this.ssoAuth.headers) {
-        this.ssoHeaders = this.ssoAuth.headers;
+    if (this.authMode === 'sso' && this.ssoCfg && this.ssoTypes.length) {
+      this.ssoChain = createSsoAuthChain(this.ssoTypes, this.ssoCfg);
+      await this.ssoChain.init(); // throws if every candidate fails
+      if (!this.ssoChain.current) {
+        throw new Error('SSO initialization failed: no candidate succeeded');
       }
-      // sso2/spnego use headers; token providers use the fetcher.
-      if (!this.ssoAuth.headers && !this.ssoAuth.prepare) {
-        this.tokenFetcher = this.ssoAuth.fetcher;
-      }
-      // Start automatic renewal for header-based SSO (sso2/spnego) so the
-      // connector keeps running unattended past ticket expiry.
+      await this.applySsoResult(this.ssoChain.current);
       this.startSsoRenewal();
     }
 
-    if (this.ssoHeaders) {
-      this.adt = new ADTClient(this.baseUrl, 'jwt', this.tokenFetcher ?? (async () => ''), this.client, this.language, {
-        headers: this.ssoHeaders,
-      });
-      return;
-    }
+    this.rebuildAdt();
+  }
 
-    if (this.tokenFetcher) {
+  /** Apply an SSO result's headers or fetcher onto this client. */
+  private async applySsoResult(result: SsoAuthResult): Promise<void> {
+    if (result.prepare) {
+      this.ssoHeaders = await result.prepare();
+    } else if (result.headers) {
+      this.ssoHeaders = result.headers;
+    } else {
+      this.tokenFetcher = result.fetcher;
+    }
+  }
+
+  /** (Re)create the ADTClient from the current headers/fetcher. */
+  private rebuildAdt(): void {
+    if (this.ssoHeaders) {
+      this.adt = new ADTClient(
+        this.baseUrl, 'jwt',
+        this.tokenFetcher ?? (async () => ''),
+        this.client, this.language,
+        { headers: this.ssoHeaders },
+      );
+    } else if (this.tokenFetcher) {
       this.adt = new ADTClient(this.baseUrl, 'jwt', this.tokenFetcher, this.client, this.language);
     }
   }
@@ -239,44 +254,52 @@ export class AdtClient {
   /**
    * Start a timer that renews header-based SSO credentials (sso2 ticket,
    * spnego Negotiate token) before they expire, then rebuilds the ADTClient
-   * so the new header takes effect. This keeps the connector running
-   * unattended — no user action, no restart on ticket expiry.
+   * so the new header takes effect. On repeated renewal failure, falls back
+   * to the next SSO candidate in the chain.
    */
   private startSsoRenewal(): void {
-    const ms = this.ssoAuth?.refreshIntervalMs;
+    const ms = this.ssoChain?.current?.refreshIntervalMs;
     if (!ms || ms <= 0) return;
-    // unref so the timer never keeps the process alive on its own.
     this.ssoTimer = setInterval(() => { void this.reauthSso(); }, ms);
     this.ssoTimer.unref?.();
   }
 
+  /** Consecutive renewal failures before switching to the next candidate. */
+  private static readonly SSO_FAIL_THRESHOLD = 2;
+
   /**
-   * Refresh the SSO header (sso2: regenerate ticket; spnego: re-acquire
-   * Negotiate token) and rebuild the ADTClient with the new header.
-   * Errors are swallowed so a transient renewal failure doesn't kill the
-   * connector — the next tick retries.
+   * Refresh the current SSO credential and rebuild the ADTClient. If the
+   * refresh fails repeatedly, advance to the next candidate in the chain.
    */
   private async reauthSso(): Promise<void> {
-    if (!this.ssoAuth) return;
+    if (!this.ssoChain?.current) return;
+    const current = this.ssoChain.current;
     try {
-      if (this.ssoAuth.refresh) await this.ssoAuth.refresh();
-      if (this.ssoAuth.prepare) this.ssoHeaders = await this.ssoAuth.prepare();
-      // sso2: refresh() mutated this.ssoHeaders in place (same reference).
-      // spnego: prepare() returned a fresh object. Either way, rebuild the
-      // ADTClient so it picks up the current header value.
-      if (this.ssoHeaders) {
-        this.adt = new ADTClient(
-          this.baseUrl, 'jwt',
-          this.tokenFetcher ?? (async () => ''),
-          this.client, this.language,
-          { headers: this.ssoHeaders },
-        );
-      }
+      if (current.refresh) await current.refresh();
+      if (current.prepare) this.ssoHeaders = await current.prepare();
+      this.rebuildAdt();
+      this.ssoFailCount = 0;
     } catch (err) {
-      // Best-effort: log and let the next interval retry.
       const msg = err instanceof Error ? err.message : String(err);
       // eslint-disable-next-line no-console
-      console.error(`[sap-mcp] SSO credential renewal failed: ${msg}`);
+      console.error(`[sap-mcp] SSO renewal failed (${current.type}): ${msg}`);
+      this.ssoFailCount++;
+      if (this.ssoFailCount >= AdtClient.SSO_FAIL_THRESHOLD) {
+        this.ssoFailCount = 0;
+        const switched = await this.ssoChain.switchToNext();
+        if (switched && this.ssoChain.current) {
+          try {
+            await this.applySsoResult(this.ssoChain.current);
+            this.rebuildAdt();
+            // eslint-disable-next-line no-console
+            console.error(`[sap-mcp] SSO switched to ${this.ssoChain.current.type}`);
+          } catch (switchErr) {
+            // eslint-disable-next-line no-console
+            console.error(`[sap-mcp] SSO switch failed: ${String(switchErr)}`);
+          }
+        }
+        // exhausted: leave current in place; next tick retries it.
+      }
     }
   }
 

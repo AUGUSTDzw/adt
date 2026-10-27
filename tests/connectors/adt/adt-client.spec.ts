@@ -302,12 +302,15 @@ describe('AdtClient', () => {
       })).toThrow('sso auth requires ssoType');
     });
 
-    it('throws when ssoType is unsupported', () => {
-      expect(() => new AdtClient({
+    it('throws on init when ssoType is unsupported', async () => {
+      const client = new AdtClient({
         baseUrl: 'https://s4.example.com',
         authMode: 'sso',
         ssoType: 'unknown_type',
-      })).toThrow(/Unsupported SSO type/);
+      });
+      // Construction is deferred; the chain tries the candidate on init()
+      // and surfaces the failure (unsupported type → all candidates failed).
+      await expect(client.init()).rejects.toThrow(/All SSO candidates failed|Unsupported SSO type/);
     });
 
     it('passes Cookie header for sso2', async () => {
