@@ -52,6 +52,7 @@ export class AdtClient {
   private tokenFetcher: (() => Promise<string>) | null;
   private ssoAuth: SsoAuthResult | null = null;
   private ssoHeaders: Record<string, string> | null = null;
+  private ssoTimer?: ReturnType<typeof setInterval>;
 
   constructor(cfg: Record<string, unknown>) {
     // Accept both camelCase (test fixtures) and lowercase (env-var loader
@@ -206,6 +207,9 @@ export class AdtClient {
       if (!this.ssoAuth.headers && !this.ssoAuth.prepare) {
         this.tokenFetcher = this.ssoAuth.fetcher;
       }
+      // Start automatic renewal for header-based SSO (sso2/spnego) so the
+      // connector keeps running unattended past ticket expiry.
+      this.startSsoRenewal();
     }
 
     if (this.ssoHeaders) {
@@ -228,6 +232,58 @@ export class AdtClient {
       throw new Error('ADTClient not initialized. Call init() first.');
     }
     return this.adt;
+  }
+
+  /**
+   * Start a timer that renews header-based SSO credentials (sso2 ticket,
+   * spnego Negotiate token) before they expire, then rebuilds the ADTClient
+   * so the new header takes effect. This keeps the connector running
+   * unattended — no user action, no restart on ticket expiry.
+   */
+  private startSsoRenewal(): void {
+    const ms = this.ssoAuth?.refreshIntervalMs;
+    if (!ms || ms <= 0) return;
+    // unref so the timer never keeps the process alive on its own.
+    this.ssoTimer = setInterval(() => { void this.reauthSso(); }, ms);
+    this.ssoTimer.unref?.();
+  }
+
+  /**
+   * Refresh the SSO header (sso2: regenerate ticket; spnego: re-acquire
+   * Negotiate token) and rebuild the ADTClient with the new header.
+   * Errors are swallowed so a transient renewal failure doesn't kill the
+   * connector — the next tick retries.
+   */
+  private async reauthSso(): Promise<void> {
+    if (!this.ssoAuth) return;
+    try {
+      if (this.ssoAuth.refresh) await this.ssoAuth.refresh();
+      if (this.ssoAuth.prepare) this.ssoHeaders = await this.ssoAuth.prepare();
+      // sso2: refresh() mutated this.ssoHeaders in place (same reference).
+      // spnego: prepare() returned a fresh object. Either way, rebuild the
+      // ADTClient so it picks up the current header value.
+      if (this.ssoHeaders) {
+        this.adt = new ADTClient(
+          this.baseUrl, 'jwt',
+          this.tokenFetcher ?? (async () => ''),
+          this.client, this.language,
+          { headers: this.ssoHeaders },
+        );
+      }
+    } catch (err) {
+      // Best-effort: log and let the next interval retry.
+      const msg = err instanceof Error ? err.message : String(err);
+      // eslint-disable-next-line no-console
+      console.error(`[sap-mcp] SSO credential renewal failed: ${msg}`);
+    }
+  }
+
+  /** Stop the SSO renewal timer (call on connector shutdown). */
+  dispose(): void {
+    if (this.ssoTimer) {
+      clearInterval(this.ssoTimer);
+      this.ssoTimer = undefined;
+    }
   }
 
   /** Underlying abap-adt-api client (exposed for advanced use / debugging). */

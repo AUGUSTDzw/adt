@@ -36,6 +36,9 @@ export function createAdtConnector(): AdtConnector {
       conn.readonly = cfg.readOnly === true || cfg.readonly === true || cfg.readOnly === 'true' || cfg.readonly === 'true';
       await conn.client.init();
     },
+    async shutdown(): Promise<void> {
+      conn.client?.dispose();
+    },
     tools(): ToolRegistration[] {
       if (!conn.client) {
         throw new Error('ADT connector not initialized — call init(cfg) first');

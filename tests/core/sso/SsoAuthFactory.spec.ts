@@ -29,6 +29,53 @@ describe('SsoAuthFactory', () => {
       expect(auth.headers!.Cookie).toMatch(/^MYSAPSSO2=/);
     });
 
+    it('refresh mutates the header in place with a new ticket', async () => {
+      const auth = createSsoAuth({
+        type: 'sso2',
+        username: 'SAP*',
+        ssoClient: '001',
+        ssoSystem: 'NPL',
+        pseCert: certPem,
+        pseKey: keyPem,
+      });
+      const before = auth.headers!.Cookie;
+      const headersRef = auth.headers;
+      // Tickets carry a timestamp; wait so the regenerated ticket differs.
+      await new Promise((r) => setTimeout(r, 10));
+      await auth.refresh?.();
+      const after = auth.headers!.Cookie;
+      expect(after).toMatch(/^MYSAPSSO2=/);
+      expect(after).not.toBe(before);
+      // Same reference — callers holding `headers` see the new value.
+      expect(auth.headers).toBe(headersRef);
+    });
+
+    it('reports a renewal interval 1h before ticket expiry', () => {
+      const auth = createSsoAuth({
+        type: 'sso2',
+        username: 'SAP*',
+        ssoClient: '001',
+        ssoSystem: 'NPL',
+        pseCert: certPem,
+        pseKey: keyPem,
+      });
+      // default durationHours = 8 → renew at 7h
+      expect(auth.refreshIntervalMs).toBe(7 * 3600_000);
+    });
+
+    it('honours a custom ssoDurationHours for the renewal interval', () => {
+      const auth = createSsoAuth({
+        type: 'sso2',
+        username: 'SAP*',
+        ssoClient: '001',
+        ssoSystem: 'NPL',
+        pseCert: certPem,
+        pseKey: keyPem,
+        ssoDurationHours: 12,
+      });
+      expect(auth.refreshIntervalMs).toBe(11 * 3600_000);
+    });
+
     it('accepts PEM file paths', () => {
       const auth = createSsoAuth({
         type: 'sso2',
@@ -76,6 +123,17 @@ describe('SsoAuthFactory', () => {
 
     it('throws without clientId', () => {
       expect(() => createSsoAuth({ type: 'client_credentials', uaaUrl: 'https://x' })).toThrow(/clientId/);
+    });
+  });
+
+  describe('spnego (Kerberos)', () => {
+    it('reports an 8h renewal interval without requiring the kerberos module', () => {
+      // createSsoAuth only builds the prepare closure; it does not acquire
+      // a token, so this works even when `kerberos` is not installed.
+      const auth = createSsoAuth({ type: 'spnego', kerberosService: 'HTTP/host@REALM' });
+      expect(auth.type).toBe('spnego');
+      expect(auth.refreshIntervalMs).toBe(8 * 3600_000);
+      expect(typeof auth.prepare).toBe('function');
     });
   });
 

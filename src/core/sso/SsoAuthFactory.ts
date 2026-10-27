@@ -46,6 +46,8 @@ export interface SsoAuthResult {
   prepare?: () => Promise<Record<string, string>>;
   /** Regenerate header credentials on expiry. */
   refresh?: () => Promise<void>;
+  /** Recommended renewal interval (ms) for header-based SSO (sso2/spnego). */
+  refreshIntervalMs?: number;
   /** Underlying auth provider (for lifecycle/debug). */
   provider?: ITokenProvider;
   /** The SSO flavour. */
@@ -324,14 +326,22 @@ export function createSsoAuth(cfg: SsoAuthConfig): SsoAuthResult {
         keyPem,
       });
 
-    let current = makeCookie();
+    // Mutable header object: refresh() updates the Cookie in place so any
+    // caller holding the reference sees the new ticket without re-creation.
+    const headers: Record<string, string> = {};
+    const applyCookie = (): void => {
+      headers.Cookie = `MYSAPSSO2=${makeCookie()}`;
+    };
+    applyCookie();
     return {
       type: 'sso2',
       fetcher: async () => '', // not used — cookie is in headers
-      headers: { Cookie: `MYSAPSSO2=${current}` },
+      headers,
       refresh: async () => {
-        current = makeCookie();
+        applyCookie();
       },
+      // Renew 1h before the ticket expires (clamped to >= 1 min).
+      refreshIntervalMs: Math.max((durationHours - 1) * 3600_000, 60_000),
     };
   }
 
@@ -348,6 +358,8 @@ export function createSsoAuth(cfg: SsoAuthConfig): SsoAuthResult {
         const token = await acquireSpnegoToken(spnegoCfg);
         return { Authorization: `Negotiate ${token}` };
       },
+      // Kerberos service tickets are typically valid ~10h; renew at 8h.
+      refreshIntervalMs: 8 * 3600_000,
     };
   }
 
