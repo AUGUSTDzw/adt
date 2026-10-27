@@ -336,6 +336,14 @@ Client config locations:
 
 ### Where to get the SSO credentials
 
+**ADT base URL** (`SAP_ADT_BASEURL`) — the ABAP system's ADT REST endpoint.
+
+| Source | How |
+|--------|-----|
+| SAP GUI | Log on → System menu → Status → note "HTTP server" + "HTTP port" (e.g. `sapdev.example.com:44300`). URL = `https://<server>:<port>` |
+| Transaction `SMICM` | Lists the configured HTTP port (Goto → Services) |
+| BTP ABAP Environment | BTP Cockpit → service instance → service key JSON `urls`/`api` field |
+
 Each candidate's values come from a different system. The unusable ones are
 skipped silently, so fill in what you have access to and leave the rest blank.
 
