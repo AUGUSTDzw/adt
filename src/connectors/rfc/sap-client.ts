@@ -54,6 +54,23 @@ export class SapRfcClient {
       PASSWD: this.cfg.passwd,
       LANG: this.cfg.lang ?? 'EN',
     };
+    // SNC (Secure Network Communications) — passwordless SSO over TLS.
+    // Enabled when SNC_MODE is '1'. USER/PASSWD may be omitted in SNC mode
+    // (SNC authenticates the principal instead).
+    const sncMode = String(this.cfg.sncMode ?? '0');
+    if (sncMode === '1') {
+      p.SNC_MODE = 1;
+      const partner = this.cfg.sncPartnerName;
+      if (!partner) throw new Error('SNC mode requires sncPartnerName (e.g. "p:CN=SID;O=org,C=country")');
+      p.SNC_PARTNER_NAME = partner;
+      if (this.cfg.sncQop !== undefined) p.SNC_QOP = Number(this.cfg.sncQop);
+      if (this.cfg.sncMyName) p.SNC_MYNAME = this.cfg.sncMyName;
+      if (this.cfg.sncLib) p.SNC_LIB = this.cfg.sncLib;
+      // SNC authenticates; clear any password to avoid sending it.
+      delete p.PASSWD;
+    } else {
+      p.SNC_MODE = 0;
+    }
     for (const k of Object.keys(p)) if (p[k] === undefined) delete p[k];
     this.conn = new Ctor(p);
   }

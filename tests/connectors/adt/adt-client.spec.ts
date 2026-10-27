@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const certPem = readFileSync(join(__dirname, '../../fixtures/sso/test_dsa_cert.pem'), 'utf8');
+const keyPem = readFileSync(join(__dirname, '../../fixtures/sso/test_dsa_key.pem'), 'utf8');
 
 vi.mock('abap-adt-api', () => ({
   ADTClient: vi.fn().mockImplementation(() => ({
@@ -286,6 +291,66 @@ describe('AdtClient', () => {
         authMode: 'jwt',
       });
       await expect(client.rawPost('/path')).rejects.toThrow('ADTClient not initialized');
+    });
+  });
+
+  describe('sso auth mode', () => {
+    it('throws when ssoType is missing', () => {
+      expect(() => new AdtClient({
+        baseUrl: 'https://s4.example.com',
+        authMode: 'sso',
+      })).toThrow('sso auth requires ssoType');
+    });
+
+    it('throws when ssoType is unsupported', () => {
+      expect(() => new AdtClient({
+        baseUrl: 'https://s4.example.com',
+        authMode: 'sso',
+        ssoType: 'unknown_type',
+      })).toThrow(/Unsupported SSO type/);
+    });
+
+    it('passes Cookie header for sso2', async () => {
+      const client = new AdtClient({
+        baseUrl: 'https://s4.example.com',
+        authMode: 'sso',
+        ssoType: 'sso2',
+        ssoUser: 'SAP*',
+        ssoClient: '001',
+        ssoSystem: 'NPL',
+        pseCert: certPem,
+        pseKey: keyPem,
+      });
+      await client.init();
+      expect(ADTClient).toHaveBeenCalledWith(
+        'https://s4.example.com',
+        'jwt',
+        expect.any(Function),
+        undefined,
+        undefined,
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Cookie: expect.stringMatching(/^MYSAPSSO2=/),
+          }),
+        }),
+      );
+    });
+
+    it('uses bearer fetcher for token ssoType', async () => {
+      const client = new AdtClient({
+        baseUrl: 'https://s4.example.com',
+        authMode: 'sso',
+        ssoType: 'token',
+        accessToken: 'jwt-xyz',
+      });
+      await client.init();
+      expect(ADTClient).toHaveBeenCalledWith(
+        'https://s4.example.com',
+        'jwt',
+        expect.any(Function),
+        undefined,
+        undefined,
+      );
     });
   });
 });

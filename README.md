@@ -156,6 +156,11 @@ bad token) is **skipped** — it never blocks the other connectors.
 Requires the SAP NWRFC SDK + `node-rfc` native module (see Prerequisites).
 Ported from the Python `sap-rfc-mcp-server` reference.
 
+**SNC (Secure Network Communications):** set `SAP_RFC_SNC_MODE=1` with
+`SAP_RFC_SNC_PARTNER_NAME` (e.g. `p:CN=SID;O=org,C=country`) for passwordless
+SSO over TLS. `USER`/`PASSWD` may be omitted — SNC authenticates the principal.
+Optional: `SAP_RFC_SNC_QOP`, `SAP_RFC_SNC_MYNAME`, `SAP_RFC_SNC_LIB`.
+
 | Tool              | Parameters                                                        | Description                                  |
 | ------------------ | ----------------------------------------------------------------- | -------------------------------------------- |
 | `call_function`   | `function`, `imports?`, `tables?`                                | Call an SAP RFC function module / BAPI       |
@@ -208,6 +213,33 @@ help (`value_help`).
 | `basic` | `SAP_ADT_USER`, `SAP_ADT_PASS` | HTTP Basic auth (username/password) |
 | `xsuaa` | `SAP_ADT_CLIENT_ID`, `SAP_ADT_CLIENT_SECRET`, `SAP_ADT_TOKEN_URL` | OAuth2 client_credentials (machine-to-machine) |
 | `jwt` | `SAP_ADT_TOKEN` | Pre-provided JWT bearer token (SSO) |
+| `sso` | `SAP_ADT_SSO_TYPE` | Unified SSO — see below |
+
+**SSO mode (`SAP_ADT_AUTHMODE=sso`)** supports every SSO flavour via
+`SAP_ADT_SSO_TYPE`:
+
+| `SAP_ADT_SSO_TYPE` | Grant / mechanism | Required config |
+|--------------------|-------------------|-----------------|
+| `oidc_browser` | OIDC authorization code + PKCE (browser) | `SAP_ADT_CLIENT_ID`, `SAP_ADT_ISSUER_URL` |
+| `oidc_device` | OIDC device_code (headless) | `SAP_ADT_CLIENT_ID`, `SAP_ADT_ISSUER_URL` |
+| `oidc_password` | OIDC password grant | `SAP_ADT_CLIENT_ID`, `SAP_ADT_USERNAME`, `SAP_ADT_PASSWORD` |
+| `oidc_token_exchange` | OAuth2 token exchange | `SAP_ADT_CLIENT_ID`, `SAP_ADT_SUBJECT_TOKEN`, `SAP_ADT_SUBJECT_TOKEN_TYPE` |
+| `saml2_bearer` | SAML2 Bearer assertion | `SAP_ADT_CLIENT_ID`, `SAP_ADT_SAML_TRUST`, `SAP_ADT_AUTHORIZATION_ENDPOINT` |
+| `saml2_pure` | SAML2 pure (session cookies) | `SAP_ADT_SAML_TRUST`, `SAP_ADT_AUTHORIZATION_ENDPOINT` |
+| `passcode` | UAA/XSUAA one-time passcode | `SAP_ADT_UAA_URL`, `SAP_ADT_CLIENT_ID` |
+| `client_credentials` | OAuth2 client_credentials | `SAP_ADT_UAA_URL`/`ISSUER_URL`, `SAP_ADT_CLIENT_ID`, `SAP_ADT_CLIENT_SECRET` |
+| `token` | Pre-provisioned token | `SAP_ADT_ACCESS_TOKEN` |
+| `sso2` | MYSAPSSO2 logon ticket | `SAP_ADT_PSE_CERT`, `SAP_ADT_PSE_KEY`, `SAP_ADT_SSO_CLIENT`, `SAP_ADT_SSO_SYSTEM` |
+| `spnego` | Kerberos SPNEGO | `SAP_ADT_KERBEROS_SERVICE` (optional `kerberos` npm module) |
+
+`SAP_ADT_STRATEGY=browser|manual|external` selects the interactive login
+mechanism for browser/SAML/passcode flows (default `browser` — opens a local
+callback on `SAP_ADT_AUTH_BROKER_PORT`).
+
+**MYSAPSSO2 (`sso2`):** generates a SAP logon ticket signed by the system PSE
+(DSA key). Supply the PSE certificate and private key as PEM strings or file
+paths. The ticket is sent as the `MYSAPSSO2` cookie and is auto-regenerated on
+expiry (`SAP_ADT_SSO_DURATION_HOURS`, default 8).
 
 **JWT/SSO:** For SAP BTP ABAP Cloud or scenarios requiring interactive login, use
 `SAP_ADT_AUTHMODE=jwt`. Two options:

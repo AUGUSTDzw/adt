@@ -38,16 +38,20 @@ import { refreshThenLogin } from '@mcp-abap-adt/auth-providers';
 import { InMemorySessionStore } from './auth/InMemorySessionStore.js';
 import { EnvServiceKeyStore } from './auth/EnvServiceKeyStore.js';
 import { BrowserAuthStrategy } from './auth/BrowserAuthStrategy.js';
+import { createSsoAuth, type SsoAuthResult } from '../../core/sso/SsoAuthFactory.js';
+import type { SsoAuthConfig, SsoAuthType } from '../../core/sso/types.js';
 
 export class AdtClient {
   private adt: ADTClient | null = null;
-  private readonly authMode: 'basic' | 'xsuaa' | 'jwt';
+  private readonly authMode: 'basic' | 'xsuaa' | 'jwt' | 'sso';
   private readonly authBroker: AuthBroker | null;
   private readonly destination: string;
   private readonly baseUrl: string;
   private readonly client: string | undefined;
   private readonly language: string | undefined;
   private tokenFetcher: (() => Promise<string>) | null;
+  private ssoAuth: SsoAuthResult | null = null;
+  private ssoHeaders: Record<string, string> | null = null;
 
   constructor(cfg: Record<string, unknown>) {
     // Accept both camelCase (test fixtures) and lowercase (env-var loader
@@ -55,7 +59,7 @@ export class AdtClient {
     this.baseUrl = String(cfg.baseUrl ?? cfg.baseurl ?? '');
     this.client = cfg.client ? String(cfg.client) : undefined;
     this.language = cfg.language ? String(cfg.language) : undefined;
-    this.authMode = String(cfg.authMode ?? cfg.authmode ?? 'basic') as 'basic' | 'xsuaa' | 'jwt';
+    this.authMode = String(cfg.authMode ?? cfg.authmode ?? 'basic') as 'basic' | 'xsuaa' | 'jwt' | 'sso';
     this.destination = String(cfg.destination ?? 'mcp');
     this.tokenFetcher = null;
     this.authBroker = null;
@@ -110,6 +114,11 @@ export class AdtClient {
           onWriteFailure: 'continue',
         });
       }
+    } else if (this.authMode === 'sso') {
+      const ssoType = String(cfg.ssoType ?? cfg.ssotype ?? '') as SsoAuthType;
+      if (!ssoType) throw new Error('sso auth requires ssoType (e.g. oidc_browser, sso2, spnego)');
+      const ssoCfg = this.buildSsoConfig(cfg, ssoType);
+      this.ssoAuth = createSsoAuth(ssoCfg);
     } else {
       const user = String(cfg.user ?? '');
       const pass = String(cfg.pass ?? '');
@@ -121,9 +130,61 @@ export class AdtClient {
     }
   }
 
+  /** Maps flat connector config into an SsoAuthConfig for the chosen type. */
+  private buildSsoConfig(cfg: Record<string, unknown>, ssoType: SsoAuthType): SsoAuthConfig {
+    const str = (k: string): string | undefined => {
+      const v = cfg[k] ?? cfg[k.toLowerCase()];
+      return v !== undefined && v !== null && v !== '' ? String(v) : undefined;
+    };
+    const num = (k: string): number | undefined => {
+      const v = str(k);
+      return v !== undefined ? Number(v) : undefined;
+    };
+    const arr = (k: string): string[] | undefined => {
+      const v = str(k);
+      return v ? v.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+    };
+
+    return {
+      type: ssoType,
+      issuerUrl: str('issuerUrl'),
+      authorizationEndpoint: str('authorizationEndpoint'),
+      tokenEndpoint: str('tokenEndpoint'),
+      deviceAuthorizationEndpoint: str('deviceAuthorizationEndpoint'),
+      clientId: str('clientId'),
+      clientSecret: str('clientSecret'),
+      scopes: arr('scopes'),
+      username: str('username'),
+      password: str('password'),
+      subjectToken: str('subjectToken'),
+      subjectTokenType: str('subjectTokenType'),
+      audience: str('audience'),
+      actorToken: str('actorToken'),
+      actorTokenType: str('actorTokenType'),
+      samlTrust: str('samlTrust'),
+      uaaUrl: str('uaaUrl'),
+      pseCert: str('pseCert'),
+      pseKey: str('pseKey'),
+      ssoUser: str('ssoUser'),
+      ssoClient: str('ssoClient') ?? this.client,
+      ssoSystem: str('ssoSystem'),
+      ssoDurationHours: num('ssoDurationHours'),
+      ssoCodepage: (str('ssoCodepage') as '4103' | '4102') ?? '4103',
+      accessToken: str('accessToken'),
+      refreshToken: str('refreshToken'),
+      expiresAt: num('expiresAt'),
+      strategy: (str('strategy') as SsoAuthConfig['strategy']) ?? 'browser',
+      authBrokerPort: num('authBrokerPort') ?? 61001,
+      destination: str('destination') ?? this.destination,
+      kerberosRealm: str('kerberosRealm'),
+      kerberosService: str('kerberosService'),
+    };
+  }
+
   /**
    * Initialize the ADTClient (called once before first use).
    * For JWT auth without a token, this triggers browser login.
+   * For SSO header auth (sso2/spnego), headers are prepared here.
    */
   async init(): Promise<void> {
     if (this.adt) return; // Already initialized
@@ -132,6 +193,26 @@ export class AdtClient {
       // Trigger browser login and get token
       const token = await this.authBroker.getToken(this.destination);
       this.tokenFetcher = async () => token;
+    }
+
+    if (this.authMode === 'sso' && this.ssoAuth) {
+      // SPNEGO: prepare the Negotiate header asynchronously.
+      if (this.ssoAuth.prepare) {
+        this.ssoHeaders = await this.ssoAuth.prepare();
+      } else if (this.ssoAuth.headers) {
+        this.ssoHeaders = this.ssoAuth.headers;
+      }
+      // sso2/spnego use headers; token providers use the fetcher.
+      if (!this.ssoAuth.headers && !this.ssoAuth.prepare) {
+        this.tokenFetcher = this.ssoAuth.fetcher;
+      }
+    }
+
+    if (this.ssoHeaders) {
+      this.adt = new ADTClient(this.baseUrl, 'jwt', this.tokenFetcher ?? (async () => ''), this.client, this.language, {
+        headers: this.ssoHeaders,
+      });
+      return;
     }
 
     if (this.tokenFetcher) {
