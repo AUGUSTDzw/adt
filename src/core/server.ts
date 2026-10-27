@@ -40,7 +40,7 @@ export function buildMcpServer(registry: Registry): McpServer {
   const cache = new ResultCache();
 
   for (const t of registry.allTools()) {
-    const isWrite = WRITE_TOOL_PATTERN.test(t.name);
+    const isWrite = t.write ?? WRITE_TOOL_PATTERN.test(t.name);
     server.tool(
       t.name,
       t.description,

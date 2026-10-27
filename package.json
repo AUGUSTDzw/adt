@@ -26,7 +26,8 @@
     "zod": "^3.23.8"
   },
   "optionalDependencies": {
-    "node-rfc": "^3.0.0"
+    "node-rfc": "^3.0.0",
+    "winax": "^3.6.10"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

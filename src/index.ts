@@ -4,6 +4,7 @@ import { startServer } from './core/server.js';
 import { createSacConnector } from './connectors/sac/index.js';
 import { createAdtConnector } from './connectors/adt/index.js';
 import { createRfcConnector } from './connectors/rfc/index.js';
+import { createGuiConnector } from './connectors/gui/index.js';
 import { logger } from './core/utils/logger.js';
 
 async function main(): Promise<void> {
@@ -13,6 +14,7 @@ async function main(): Promise<void> {
   if (enabled.has('rfc')) registry.register(createRfcConnector());
   if (enabled.has('sac')) registry.register(createSacConnector());
   if (enabled.has('adt')) registry.register(createAdtConnector());
+  if (enabled.has('gui')) registry.register(createGuiConnector());
   await registry.initAll(config.connectors);
   await startServer(registry, config);
 }

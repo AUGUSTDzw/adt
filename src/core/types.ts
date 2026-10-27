@@ -12,6 +12,8 @@ export interface ToolRegistration {
   description: string;
   inputSchema: ZodRawShape;
   handler: (args: unknown, ctx?: unknown) => Promise<ToolResult>;
+  /** Explicit write marker; when set, overrides the name-pattern heuristic. */
+  write?: boolean;
 }
 
 export interface ResourceRegistration {

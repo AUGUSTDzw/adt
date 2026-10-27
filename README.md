@@ -3,7 +3,7 @@
 English | [简体中文](./README.zh-CN.md)
 
 A single [Model Context Protocol](https://modelcontextprotocol.io/) server that
-exposes SAP systems to LLM clients. Three connectors share one process and one
+exposes SAP systems to LLM clients. Four connectors share one process and one
 MCP transport, with every tool namespaced as `sap.<connector>.<tool>`:
 
 | Connector | Namespace   | Capabilities                                                  |
@@ -11,11 +11,13 @@ MCP transport, with every tool namespaced as `sap.<connector>.<tool>`:
 | RFC       | `sap.rfc.*` | Call BAPIs/function modules, read tables, inspect metadata   |
 | SAC       | `sap.sac.*` | SAP Analytics Cloud stories, models, data export/import, etc. |
 | ADT       | `sap.adt.*` | 168 tools: source, objects, ATC, data, dumps, abapGit, debugger, traces, transports, refactoring, RAP, services, SAP Notes, jobs, CDS, versions, locks |
+| GUI       | `sap.gui.*` | Attach to running SAP GUI sessions (免密 SSO), read/write screen elements, popups, screenshots |
 
 ## Prerequisites
 
 - **Node.js >= 20**
 - For the **RFC connector only**: the [SAP NetWeaver RFC SDK](https://support.sap.com/en/product/connectors/nw-rfc-sdk.html) must be installed and the `node-rfc` native module built against it. `node-rfc` is listed in `optionalDependencies` — `npm install` fetches it but the native build is skipped on machines without the SDK (npm treats the failed optional build as non-fatal, so the install never hangs). On a machine with the SAP NWRFC SDK installed and the build approved (`npm install-scripts approve node-rfc`), the RFC connector becomes available automatically. Without it, the RFC connector is **gracefully skipped** at startup (logged as a warning); SAC and ADT keep working. See `src/connectors/rfc/sap-client.ts` for the dynamic-import guard.
+- For the **GUI connector only**: Windows and a running SAP GUI session. `winax` is listed in `optionalDependencies` (Windows-only native module; on other platforms `npm install` skips it). Without it the GUI connector registers its tools but returns a clear "Windows-only" error, so RFC/SAC/ADT keep working.
 
 ## Install
 
@@ -34,7 +36,7 @@ cp .env.example .env
 
 Key variables:
 
-- `SAP_ENABLED_CONNECTORS` — comma-separated subset of `rfc,sac,adt` (empty = no connectors, server still starts).
+- `SAP_ENABLED_CONNECTORS` — comma-separated subset of `rfc,sac,adt,gui` (empty = no connectors, server still starts).
 - `SAP_TRANSPORT` — `stdio` (default) or `http`.
 - `SAP_HTTP_PORT`, `SAP_HTTP_AUTH_TOKEN` — HTTP transport options (bearer token is optional; if set, clients must send `Authorization: Bearer <token>`).
 - `SAP_<ID>_*` — per-connector settings (e.g. `SAP_RFC_ASHOST`, `SAP_SAC_URL`, `SAP_ADT_BASEURL`).
