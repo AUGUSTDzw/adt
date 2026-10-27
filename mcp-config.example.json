@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "sap": {
+      "command": "node",
+      "args": ["D:\\Workspace\\MCP\\dist\\index.js"],
+      "env": {
+        "SAP_TRANSPORT": "stdio",
+        "SAP_LOG_LEVEL": "info",
+        "SAP_ENABLED_CONNECTORS": "adt,rfc,gui",
+
+        "SAP_ADT_BASEURL": "https://sapdev.example.com:44300",
+        "SAP_ADT_AUTHMODE": "sso",
+        "SAP_ADT_SSO_TYPE": "spnego",
+        "SAP_ADT_CLIENT": "100",
+        "SAP_ADT_KERBEROS_SERVICE": "HTTP/sapdev.example.com",
+        "SAP_ADT_KERBEROS_REALM": "EXAMPLE.COM",
+        "SAP_ADT_KERBEROS_KEYTAB": "C:\\sap\\sap.keytab",
+        "SAP_ADT_KERBEROS_PRINCIPAL": "SAPSERVICE/mcp@EXAMPLE.COM",
+
+        "SAP_RFC_ASHOST": "sapdev.example.com",
+        "SAP_RFC_SYSNR": "00",
+        "SAP_RFC_CLIENT": "100",
+        "SAP_RFC_LANG": "EN",
+        "SAP_RFC_SNC_MODE": "1",
+        "SAP_RFC_SNC_PARTNER_NAME": "p:CN=SAPR3,OU=SAP,O=Example,C=US",
+        "SAP_RFC_SNC_LIB": "C:\\sap\\libsapsecu.dll",
+
+        "SAP_GUI_CLIENT": "100",
+        "SAP_GUI_LANGUAGE": "EN"
+      }
+    }
+  }
+}

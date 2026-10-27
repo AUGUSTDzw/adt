@@ -17,7 +17,7 @@ MCP transport, with every tool namespaced as `sap.<connector>.<tool>`:
 
 - **Node.js >= 20**
 - For the **RFC connector only**: the [SAP NetWeaver RFC SDK](https://support.sap.com/en/product/connectors/nw-rfc-sdk.html) must be installed and the `node-rfc` native module built against it. `node-rfc` is listed in `optionalDependencies` — `npm install` fetches it but the native build is skipped on machines without the SDK (npm treats the failed optional build as non-fatal, so the install never hangs). On a machine with the SAP NWRFC SDK installed and the build approved (`npm install-scripts approve node-rfc`), the RFC connector becomes available automatically. Without it, the RFC connector is **gracefully skipped** at startup (logged as a warning); SAC and ADT keep working. See `src/connectors/rfc/sap-client.ts` for the dynamic-import guard.
-- For the **GUI connector only**: Windows and a running SAP GUI session. `winax` is listed in `optionalDependencies` (Windows-only native module; on other platforms `npm install` skips it). Without it the GUI connector registers its tools but returns a clear "Windows-only" error, so RFC/SAC/ADT keep working.
+- For the **GUI connector only**: Windows and a running SAP GUI session. `winax` is listed in `optionalDependencies` (Windows-only native module; on other platforms `npm install` skips it). When `winax` is absent or fails to build (no build tools), the connector falls back to a **PowerShell COM bridge** — a long-lived `pwsh -STA` process that performs COM automation over JSON-RPC, so the GUI connector still works without any native compilation. `kerberos` (SPNEGO) uses a prebuilt N-API binary and likewise needs no build tools.
 
 ## Install
 
@@ -232,7 +232,7 @@ help (`value_help`).
 | `client_credentials` | OAuth2 client_credentials | `SAP_ADT_UAA_URL`/`ISSUER_URL`, `SAP_ADT_CLIENT_ID`, `SAP_ADT_CLIENT_SECRET` |
 | `token` | Pre-provisioned token | `SAP_ADT_ACCESS_TOKEN` |
 | `sso2` | MYSAPSSO2 logon ticket | `SAP_ADT_PSE_CERT`, `SAP_ADT_PSE_KEY`, `SAP_ADT_SSO_CLIENT`, `SAP_ADT_SSO_SYSTEM` |
-| `spnego` | Kerberos SPNEGO | `SAP_ADT_KERBEROS_SERVICE` (optional `kerberos` npm module) |
+| `spnego` | Kerberos SPNEGO | `SAP_ADT_KERBEROS_SERVICE`; `SAP_ADT_KERBEROS_KEYTAB` + `SAP_ADT_KERBEROS_PRINCIPAL` for automatic `kinit` |
 
 `SAP_ADT_STRATEGY=browser|manual|external` selects the interactive login
 mechanism for browser/SAML/passcode flows (default `browser` — opens a local
@@ -242,6 +242,82 @@ callback on `SAP_ADT_AUTH_BROKER_PORT`).
 (DSA key). Supply the PSE certificate and private key as PEM strings or file
 paths. The ticket is sent as the `MYSAPSSO2` cookie and is auto-regenerated on
 expiry (`SAP_ADT_SSO_DURATION_HOURS`, default 8).
+
+**Automatic credential renewal:** `sso2` and `spnego` credentials expire. The
+connector renews them unattended — an `unref`'d timer calls `refresh()` (sso2:
+regenerates the ticket) or `prepare()` (spnego: re-acquires the Negotiate
+token) and rebuilds the ADTClient with the new header. Renewal cadence:
+- `sso2`: `(SAP_ADT_SSO_DURATION_HOURS - 1)h` (default 7h)
+- `spnego`: every 8h (Kerberos service tickets are ~10h)
+
+**SPNEGO automatic `kinit` (keytab mode):** set `SAP_ADT_KERBEROS_KEYTAB` and
+`SAP_ADT_KERBEROS_PRINCIPAL` to have the connector run `kinit -kt <keytab>
+<principal>` on startup and every 7h — no manual `kinit` needed. Omit both on
+Windows domain service accounts (the LSA manages the TGT).
+
+**Unattended SSO — which types need no user action:**
+
+| Type | Startup | Renewal | Notes |
+|------|---------|---------|-------|
+| `sso2` | local sign | auto | PSE key file |
+| `spnego` | auto `kinit` / LSA | auto | keytab or Windows domain account |
+| `client_credentials` | auto token | provider refresh | client secret |
+| `oidc_token_exchange` | auto exchange | provider refresh | subject token |
+| RFC SNC | SAP transport layer | SAP library | `SAP_RFC_SNC_MODE=1` |
+| GUI `connect_existing` | attach | none | requires an already-logged-on GUI |
+
+Interactive flows (`oidc_browser`, `oidc_device`, `saml2_*`, `passcode`) need
+human consent by protocol design.
+
+**Full MCP configuration (unattended SPNEGO + RFC SNC + GUI attach):**
+
+Build first (`npm run build`), then point your MCP client at this config:
+
+```json
+{
+  "mcpServers": {
+    "sap": {
+      "command": "node",
+      "args": ["/path/to/dist/index.js"],
+      "env": {
+        "SAP_TRANSPORT": "stdio",
+        "SAP_ENABLED_CONNECTORS": "adt,rfc,gui",
+
+        "SAP_ADT_BASEURL": "https://sapdev.example.com:44300",
+        "SAP_ADT_AUTHMODE": "sso",
+        "SAP_ADT_SSO_TYPE": "spnego",
+        "SAP_ADT_CLIENT": "100",
+        "SAP_ADT_KERBEROS_SERVICE": "HTTP/sapdev.example.com",
+        "SAP_ADT_KERBEROS_REALM": "EXAMPLE.COM",
+        "SAP_ADT_KERBEROS_KEYTAB": "/etc/sap/sap.keytab",
+        "SAP_ADT_KERBEROS_PRINCIPAL": "SAPSERVICE/mcp@EXAMPLE.COM",
+
+        "SAP_RFC_ASHOST": "sapdev.example.com",
+        "SAP_RFC_SYSNR": "00",
+        "SAP_RFC_CLIENT": "100",
+        "SAP_RFC_LANG": "EN",
+        "SAP_RFC_SNC_MODE": "1",
+        "SAP_RFC_SNC_PARTNER_NAME": "p:CN=SAPR3,OU=SAP,O=Example,C=US",
+        "SAP_RFC_SNC_LIB": "/usr/sap/libsapsecu.so",
+
+        "SAP_GUI_CLIENT": "100",
+        "SAP_GUI_LANGUAGE": "EN"
+      }
+    }
+  }
+}
+```
+
+Swap the ADT env block to switch SSO flavour:
+
+- **MYSAPSSO2**: `SAP_ADT_SSO_TYPE=sso2`, `SAP_ADT_PSE_CERT`, `SAP_ADT_PSE_KEY`,
+  `SAP_ADT_SSO_USER`, `SAP_ADT_SSO_SYSTEM`.
+- **client_credentials (BTP ABAP)**: `SAP_ADT_SSO_TYPE=client_credentials`,
+  `SAP_ADT_UAA_URL`, `SAP_ADT_CLIENT_ID`, `SAP_ADT_CLIENT_SECRET`.
+
+Client config locations:
+- **Claude Desktop**: `%APPDATA%\Claude\claude_desktop_config.json` (merge `mcpServers`)
+- **opencode**: `opencode.json` in the project, or `~/.config/opencode/opencode.json`
 
 **JWT/SSO:** For SAP BTP ABAP Cloud or scenarios requiring interactive login, use
 `SAP_ADT_AUTHMODE=jwt`. Two options:
