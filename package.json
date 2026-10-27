@@ -27,7 +27,8 @@
   },
   "optionalDependencies": {
     "node-rfc": "^3.0.0",
-    "winax": "^3.6.10"
+    "winax": "^3.6.10",
+    "kerberos": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

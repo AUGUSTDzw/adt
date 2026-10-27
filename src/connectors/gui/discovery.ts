@@ -9,32 +9,29 @@
  *                           sessions in sapguiserver.exe; SAP Business Client
  *                           and embedded SAP GUI register the same shape).
  *
- * winax resolves these names with CoGetObject (the `getobject: true` option),
- * which parses the name and binds the ROT moniker. Engines are cached; a dead
- * engine is dropped and re-resolved on the next call.
+ * The backend (winax or the PowerShell bridge) resolves these names with
+ * BindToMoniker / CoGetObject. Engines are cached; a dead engine is dropped
+ * and re-resolved on the next call.
  */
 
-import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { type ComApi, type ComObject, enumCollection, prop } from './com-bridge.js';
+import { type ComApi, type ComHandle, enumCollection, prop } from './com-bridge.js';
 
 export interface EngineHost {
   host: 'saplogon' | 'sapguiserver';
   rotName: string;
-  engine: ComObject;
+  engine: ComHandle;
 }
 
 export interface DiscoveredConnection {
   host: 'saplogon' | 'sapguiserver';
   rotName: string;
-  engine: ComObject;
-  connection: ComObject;
+  engine: ComHandle;
+  connection: ComHandle;
 }
 
 /** List PIDs of SAP GUI-related processes (injectable for tests). */
 export type PidLister = () => number[];
-
-const require = createRequire(import.meta.url);
 
 // Process name patterns that may host a SAP GUI scripting engine.
 const SAP_PROCESS_RE = /^(sapgui|sapguiserver|saplogon|sapbusinessclient|sapbc|saplogonpad)$/i;
@@ -59,7 +56,7 @@ const NOT_AVAILABLE_MESSAGE =
   'Cannot connect to SAP GUI. Ensure SAP Logon Pad, SAP Business Client, or another SAP GUI session is running.';
 
 export class GuiDiscovery {
-  private engines = new Map<string, ComObject>();
+  private engines = new Map<string, ComHandle>();
 
   constructor(
     private com: ComApi,
@@ -67,19 +64,19 @@ export class GuiDiscovery {
   ) {}
 
   /** Resolve a ROT entry to its scripting engine, or null on failure. */
-  resolveEngine(rotName: string): ComObject | null {
+  async resolveEngine(rotName: string): Promise<ComHandle | null> {
     const cached = this.engines.get(rotName);
     if (cached) {
       try {
-        prop(cached, 'Children', null);
+        await prop(cached, 'Children', null);
         return cached;
       } catch {
         this.engines.delete(rotName);
       }
     }
     try {
-      const gui = new this.com.Object(rotName, { getobject: true });
-      const engine = prop<ComObject | null>(gui, 'GetScriptingEngine', null);
+      const gui = await this.com.getObject(rotName, { getobject: true });
+      const engine = await prop<ComHandle | null>(gui, 'GetScriptingEngine', null);
       if (engine) this.engines.set(rotName, engine);
       return engine;
     } catch {
@@ -88,23 +85,24 @@ export class GuiDiscovery {
   }
 
   /** Yield every reachable engine: SAP Logon first, then server processes. */
-  *iterateEngines(): Iterable<EngineHost> {
-    const saplogon = this.resolveEngine('SAPGUI');
+  async *iterateEngines(): AsyncIterable<EngineHost> {
+    const saplogon = await this.resolveEngine('SAPGUI');
     if (saplogon) yield { host: 'saplogon', rotName: 'SAPGUI', engine: saplogon };
 
     const pids = this.listPids();
     for (const pid of pids) {
       const rotName = `SAPGUISERVER-${pid.toString(16).toUpperCase()}`;
-      const engine = this.resolveEngine(rotName);
+      const engine = await this.resolveEngine(rotName);
       if (engine) yield { host: 'sapguiserver', rotName, engine };
     }
   }
 
   /** All connections across all engines, in global index order. */
-  discoverConnections(): DiscoveredConnection[] {
+  async discoverConnections(): Promise<DiscoveredConnection[]> {
     const found: DiscoveredConnection[] = [];
-    for (const { host, rotName, engine } of this.iterateEngines()) {
-      for (const connection of enumCollection<ComObject>(prop(engine, 'Children', null))) {
+    for await (const { host, rotName, engine } of this.iterateEngines()) {
+      const children = await enumCollection<ComHandle>(await prop(engine, 'Children', null));
+      for (const connection of children) {
         if (connection) found.push({ host, rotName, engine, connection });
       }
     }
@@ -112,7 +110,7 @@ export class GuiDiscovery {
   }
 
   /** SAP Logon scripting engine (needed for OpenConnection), or null. */
-  getSapLogonEngine(): ComObject | null {
+  getSapLogonEngine(): Promise<ComHandle | null> {
     return this.resolveEngine('SAPGUI');
   }
 }

@@ -8,7 +8,7 @@
  * pressing a button that may save.
  */
 
-import { type ComObject, enumCollection, prop, invoke } from './com-bridge.js';
+import { type ComHandle, enumCollection, prop, invoke } from './com-bridge.js';
 
 export interface PopupButton {
   id: string;
@@ -63,18 +63,17 @@ const INTERACTIVE_TYPES = new Set([
 ]);
 
 export class PopupHandler {
-  constructor(private getSession: () => ComObject) {}
+  constructor(private getSession: () => ComHandle) {}
 
   /** Read the topmost popup above wnd[0], or { popup_exists: false }. */
-  readPopup(): PopupInfo {
+  async readPopup(): Promise<PopupInfo> {
     const session = this.getSession();
     let popupId: string | null = null;
-    let popup: ComObject | null = null;
+    let popup: ComHandle | null = null;
     for (let i = 1; i < 10; i++) {
       const id = `wnd[${i}]`;
       try {
-        const wnd = session.findById(id);
-        popup = wnd;
+        popup = await invoke<ComHandle>(session, 'findById', id);
         popupId = id;
       } catch {
         break;
@@ -84,7 +83,7 @@ export class PopupHandler {
 
     const result: PopupInfo = { popup_exists: true, window_id: popupId };
     try {
-      result.title = String(prop(popup, 'Text', '') ?? '').trim();
+      result.title = String((await prop(popup, 'Text', '')) ?? '').trim();
     } catch {
       result.title = '';
     }
@@ -92,7 +91,7 @@ export class PopupHandler {
     const texts: string[] = [];
     const buttons: PopupButton[] = [];
     const interactive: PopupElement[] = [];
-    this.walkPopup(popupId, 0, texts, buttons, interactive);
+    await this.walkPopup(popupId, 0, texts, buttons, interactive);
 
     if (texts.length) result.texts = texts;
     if (buttons.length) result.buttons = buttons;
@@ -105,27 +104,29 @@ export class PopupHandler {
     return this.classify(result);
   }
 
-  private walkPopup(id: string, depth: number, texts: string[], buttons: PopupButton[], interactive: PopupElement[]): void {
+  private async walkPopup(
+    id: string, depth: number, texts: string[], buttons: PopupButton[], interactive: PopupElement[],
+  ): Promise<void> {
     if (depth > 4) return;
-    let container: ComObject;
+    let container: ComHandle;
     try {
-      container = this.getSession().findById(id);
+      container = await invoke<ComHandle>(this.getSession(), 'findById', id);
     } catch {
       return;
     }
-    const children = enumCollection<ComObject>(prop(container, 'Children', null));
+    const children = await enumCollection<ComHandle>(await prop(container, 'Children', null));
     for (const child of children) {
       if (!child) continue;
-      const childId = String(prop(child, 'Id', '') ?? '');
+      const childId = String((await prop(child, 'Id', '')) ?? '');
       if (!childId) continue;
-      const type = String(prop(child, 'Type', '') ?? '');
-      const text = String(prop(child, 'Text', '') ?? '');
-      const changeable = Boolean(prop(child, 'Changeable', false));
+      const type = String((await prop(child, 'Type', '')) ?? '');
+      const text = String((await prop(child, 'Text', '')) ?? '');
+      const changeable = Boolean(await prop(child, 'Changeable', false));
       if (type === 'GuiButton') {
         buttons.push({
           id: this.normalizeId(childId),
           text: text.trim(),
-          tooltip: String(prop(child, 'Tooltip', '') ?? '').trim(),
+          tooltip: String((await prop(child, 'Tooltip', '')) ?? '').trim(),
         });
       } else if (type === 'GuiLabel' || type === 'GuiTitlebar' || type === 'GuiStatusbar' || type === 'GuiSimpleText') {
         if (text.trim()) texts.push(text.trim());
@@ -133,16 +134,16 @@ export class PopupHandler {
         const el: PopupElement = {
           id: this.normalizeId(childId),
           type,
-          name: String(prop(child, 'Name', '') ?? ''),
+          name: String((await prop(child, 'Name', '')) ?? ''),
           text,
           changeable,
         };
         if (type === 'GuiCheckBox' || type === 'GuiRadioButton') {
-          el.selected = Boolean(prop(child, 'Selected', false));
+          el.selected = Boolean(await prop(child, 'Selected', false));
         }
         interactive.push(el);
       }
-      this.walkPopup(childId, depth + 1, texts, buttons, interactive);
+      await this.walkPopup(childId, depth + 1, texts, buttons, interactive);
     }
   }
 
@@ -160,7 +161,7 @@ export class PopupHandler {
     let classification = 'unknown';
     if (ERROR_PATTERNS.some((p) => blob.includes(p))) classification = 'error';
     else if (blob.includes('warning')) classification = 'warning';
-    else if (popup.has_inputs || INTERACTIVE_TYPES.size > 0 && (popup.interactive_elements?.length ?? 0) > 0) classification = 'input_required';
+    else if ((popup.interactive_elements?.length ?? 0) > 0) classification = 'input_required';
     else if (CONFIRMATION_PATTERNS.some((p) => blob.includes(p)) || (blob.includes('?') && (hasConfirm || hasCancel))) classification = 'confirmation';
     else if (hasConfirm && hasCancel) classification = 'confirmation';
     else if (INFO_PATTERNS.some((p) => blob.includes(p)) || (hasConfirm && !hasCancel) || (hasCancel && !hasConfirm)) classification = 'information';
@@ -176,9 +177,11 @@ export class PopupHandler {
     return popup;
   }
 
-  /** Decide what an action would press (presses nothing). */
-  planPopupAction(action: 'read' | 'confirm' | 'cancel' | 'press' | 'auto', buttonText = ''): PopupPlan {
-    const popup = this.readPopup();
+  /** Plan: read the popup once and decide what an action would press. */
+  async planPopupAction(
+    action: 'read' | 'confirm' | 'cancel' | 'press' | 'auto', buttonText = '',
+  ): Promise<PopupPlan> {
+    const popup = await this.readPopup();
     const plan: PopupPlan = { popup, action, button: null, fallback_vkey: null, save_risk: false, done: true };
     if (!popup.popup_exists) {
       plan.popup = { popup_exists: false, action: 'none' };
@@ -235,15 +238,15 @@ export class PopupHandler {
   }
 
   /** Press what the plan chose; returns the updated popup state. */
-  applyPopupPlan(plan: PopupPlan): PopupInfo {
+  async applyPopupPlan(plan: PopupPlan): Promise<PopupInfo> {
     const popup = plan.popup;
     if (plan.done) return popup;
     const session = this.getSession();
     const windowId = popup.window_id ?? 'wnd[1]';
     if (plan.button) {
       try {
-        const btn = session.findById(plan.button.id);
-        invoke(btn, 'press');
+        const btn = await invoke<ComHandle>(session, 'findById', plan.button.id);
+        await invoke(btn, 'press');
       } catch (err) {
         popup.action = 'error';
         popup.error = `Failed to press button: ${String(err).slice(0, 200)}`;
@@ -253,8 +256,8 @@ export class PopupHandler {
       popup.button_pressed = plan.button.text || plan.button.tooltip;
     } else if (plan.fallback_vkey !== null) {
       try {
-        const window = session.findById(windowId);
-        invoke(window, 'sendVKey', plan.fallback_vkey);
+        const window = await invoke<ComHandle>(session, 'findById', windowId);
+        await invoke(window, 'sendVKey', plan.fallback_vkey);
       } catch (err) {
         popup.action = 'error';
         popup.error = `Failed to send key: ${String(err).slice(0, 200)}`;
@@ -263,7 +266,7 @@ export class PopupHandler {
       popup.action = `${plan.action}ed`;
       popup.button_pressed = plan.fallback_vkey === 0 ? 'Enter (fallback)' : 'F12 (fallback)';
     }
-    popup.popup_closed = !this.readPopup().popup_exists;
+    popup.popup_closed = !(await this.readPopup()).popup_exists;
     return popup;
   }
 

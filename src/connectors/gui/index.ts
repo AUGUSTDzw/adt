@@ -3,13 +3,15 @@
  *
  * Attaches to already-logged-on SAP GUI sessions via Windows COM (免密 SSO),
  * plus reading/writing screen elements, popup handling, and screenshots. The
- * connector degrades gracefully: on non-Windows platforms or without `winax`
- * the tools are still registered but return a clear "Windows-only" error.
+ * connector degrades gracefully: on non-Windows platforms, or without winax
+ * and without PowerShell, the tools are still registered but return a clear
+ * error. The COM backend is chosen automatically (winax fast path, PowerShell
+ * bridge when winax cannot be built).
  */
 
 import type { SapConnector, ToolRegistration, ConnectorConfig, ToolResult } from '../../core/types.js';
 import { z } from 'zod';
-import { getCom, comUnavailableReason, isComAvailable } from './com-bridge.js';
+import { getCom, comUnavailableReason, isComAvailable, invoke } from './com-bridge.js';
 import { SapGuiClient, parseVKey, vKeyName } from './sap-gui-client.js';
 import { PopupHandler } from './popup.js';
 import { logger } from '../../core/utils/logger.js';
@@ -34,7 +36,7 @@ export function createGuiConnector(): SapConnector {
         language: cfg.language as string | undefined,
       };
       if (!isComAvailable()) {
-        unavailable = comUnavailableReason() ?? 'winax is not available';
+        unavailable = comUnavailableReason() ?? 'no COM backend available';
         logger.warn({ connector: 'gui', reason: unavailable }, 'sap.gui connector degraded (COM unavailable)');
         return;
       }
@@ -46,14 +48,14 @@ export function createGuiConnector(): SapConnector {
         }
         return client.boundSession!;
       });
-      logger.info({ connector: 'gui' }, 'sap.gui connector initialized (COM available)');
+      logger.info({ connector: 'gui', backend: com.backend }, 'sap.gui connector initialized');
     },
 
     tools(): ToolRegistration[] {
-      const com = <T>(fn: () => T): ToolResult => {
+      const com = async <T>(fn: () => Promise<T>): Promise<ToolResult> => {
         if (unavailable) return errorResult(`sap.gui is unavailable: ${unavailable}`);
         try {
-          return { content: [{ type: 'json', json: fn() }] };
+          return { content: [{ type: 'json', json: await fn() }] };
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           return { content: [{ type: 'json', json: { error: message } }], isError: true };
@@ -76,7 +78,7 @@ export function createGuiConnector(): SapConnector {
           name: 'list_connections',
           description: 'List open SAP GUI connections and sessions (SAP Logon + SAP GUI server processes)',
           inputSchema: {},
-          handler: async () => com(() => ({ connections: needClient().listConnections() })),
+          handler: async () => com(async () => ({ connections: await needClient().listConnections() })),
         },
         {
           name: 'connect_existing',
@@ -86,11 +88,11 @@ export function createGuiConnector(): SapConnector {
             connection_index: z.number().int().nonnegative().default(0),
             session_index: z.number().int().nonnegative().default(0),
           },
-          handler: async (a) => com(() => {
+          handler: async (a) => com(async () => {
             const args = a as { system?: string; connection_index: number; session_index: number };
             const c = needClient();
             if (args.system) {
-              const found = c.listConnections();
+              const found = await c.listConnections();
               const [sid, cli] = args.system.toUpperCase().split('/');
               const matches: { connection_index: number; session_index: number }[] = [];
               found.forEach((conn) => {
@@ -113,7 +115,7 @@ export function createGuiConnector(): SapConnector {
           name: 'connect',
           description: 'Open a new SAP connection by its SAP Logon description. Credentials come from .env (SAP_GUI_USER/PASSWORD/CLIENT/LANGUAGE), never from the tool call',
           inputSchema: { system: z.string() },
-          handler: async (a) => com(() => {
+          handler: async (a) => com(async () => {
             const args = a as { system: string };
             return needClient().connect(args.system, env);
           }),
@@ -122,8 +124,8 @@ export function createGuiConnector(): SapConnector {
           name: 'disconnect',
           description: 'Detach from the current SAP GUI session (sessions opened by sap.gui.connect are closed; attached sessions are left open)',
           inputSchema: {},
-          handler: async () => com(() => {
-            needClient().disconnect();
+          handler: async () => com(async () => {
+            await needClient().disconnect();
             return { disconnected: true };
           }),
         },
@@ -131,7 +133,7 @@ export function createGuiConnector(): SapConnector {
           name: 'get_session_info',
           description: 'Get the current SAP session info: system, client, user, transaction, screen, SAP GUI version, scripting_read_only',
           inputSchema: {},
-          handler: async () => com(() => needClient().getSessionInfo()),
+          handler: async () => com(async () => needClient().getSessionInfo()),
         },
 
         // ------------------------------------------------------------------
@@ -141,19 +143,22 @@ export function createGuiConnector(): SapConnector {
           name: 'get_screen_info',
           description: 'Get the current screen info: status bar message, title, transaction, active window',
           inputSchema: {},
-          handler: async () => com(() => needClient().getScreenInfo()),
+          handler: async () => com(async () => needClient().getScreenInfo()),
         },
         {
           name: 'find_element',
           description: 'Find an SAP GUI element by ID and return its type, text, changeable state',
           inputSchema: { id: z.string() },
-          handler: async (a) => com(() => needClient().findElement((a as { id: string }).id)),
+          handler: async (a) => com(async () => needClient().findElement((a as { id: string }).id)),
         },
         {
           name: 'get_text',
           description: 'Read the text of an SAP GUI element',
           inputSchema: { id: z.string() },
-          handler: async (a) => com(() => ({ id: (a as { id: string }).id, text: needClient().getText((a as { id: string }).id) })),
+          handler: async (a) => com(async () => {
+            const id = (a as { id: string }).id;
+            return { id, text: await needClient().getText(id) };
+          }),
         },
         {
           name: 'list_elements',
@@ -164,9 +169,9 @@ export function createGuiConnector(): SapConnector {
             type_filter: z.string().optional(),
             changeable_only: z.boolean().default(false),
           },
-          handler: async (a) => com(() => {
+          handler: async (a) => com(async () => {
             const args = a as { container_id: string; max_depth: number; type_filter?: string; changeable_only: boolean };
-            const elements = needClient().listElements(args.container_id, args.max_depth, args.type_filter ?? '', args.changeable_only);
+            const elements = await needClient().listElements(args.container_id, args.max_depth, args.type_filter ?? '', args.changeable_only);
             return { container: args.container_id, elements };
           }),
         },
@@ -174,13 +179,13 @@ export function createGuiConnector(): SapConnector {
           name: 'get_popup',
           description: 'Read the topmost popup dialog (title, texts, buttons, classification) or { popup_exists: false }',
           inputSchema: {},
-          handler: async () => com(() => needPopup().readPopup()),
+          handler: async () => com(async () => needPopup().readPopup()),
         },
         {
           name: 'take_screenshot',
           description: 'Screenshot the current SAP window as PNG. With filepath, saves to file; without, returns base64 data',
           inputSchema: { filepath: z.string().optional() },
-          handler: async (a) => com(() => needClient().takeScreenshot((a as { filepath?: string }).filepath)),
+          handler: async (a) => com(async () => needClient().takeScreenshot((a as { filepath?: string }).filepath)),
         },
 
         // ------------------------------------------------------------------
@@ -191,7 +196,7 @@ export function createGuiConnector(): SapConnector {
           description: 'Set the text of an SAP GUI element (input field, command field, etc.)',
           inputSchema: { id: z.string(), value: z.string() },
           write: true,
-          handler: async (a) => com(() => {
+          handler: async (a) => com(async () => {
             const args = a as { id: string; value: string };
             return needClient().setText(args.id, args.value);
           }),
@@ -204,11 +209,11 @@ export function createGuiConnector(): SapConnector {
             window: z.string().default('wnd[0]'),
           },
           write: true,
-          handler: async (a) => com(() => {
+          handler: async (a) => com(async () => {
             const args = a as { key: string; window: string };
             const code = parseVKey(args.key);
             if (code === null) throw new Error(`Unknown key '${args.key}'.`);
-            const screen = needClient().sendVKey(code, args.window);
+            const screen = await needClient().sendVKey(code, args.window);
             return { vkey: code, key_name: vKeyName(code), screen };
           }),
         },
@@ -217,9 +222,9 @@ export function createGuiConnector(): SapConnector {
           description: 'Execute (start) an SAP transaction code, e.g. MM03, VA01, SE16. Use /n prefix to leave the current transaction',
           inputSchema: { tcode: z.string() },
           write: true,
-          handler: async (a) => com(() => {
+          handler: async (a) => com(async () => {
             const args = a as { tcode: string };
-            const screen = needClient().executeTransaction(args.tcode);
+            const screen = await needClient().executeTransaction(args.tcode);
             return { transaction: args.tcode.replace(/^\/[nN]/, ''), screen };
           }),
         },
@@ -231,9 +236,9 @@ export function createGuiConnector(): SapConnector {
             button_text: z.string().optional(),
           },
           write: true,
-          handler: async (a) => com(() => {
+          handler: async (a) => com(async () => {
             const args = a as { action: 'read' | 'confirm' | 'cancel' | 'press' | 'auto'; button_text?: string };
-            const plan = needPopup().planPopupAction(args.action, args.button_text ?? '');
+            const plan = await needPopup().planPopupAction(args.action, args.button_text ?? '');
             if (plan.popup.error) return plan.popup;
             return needPopup().applyPopupPlan(plan);
           }),
@@ -243,14 +248,12 @@ export function createGuiConnector(): SapConnector {
           description: 'Press a button by its element ID (e.g. wnd[1]/usr/btnBUTTON_1)',
           inputSchema: { button_id: z.string() },
           write: true,
-          handler: async (a) => com(() => {
+          handler: async (a) => com(async () => {
             const args = a as { button_id: string };
-            const plan = needPopup().planPopupAction('press', '');
-            // Press a specific button ID directly.
             const session = needClient().boundSession!;
-            const button = session.findById(args.button_id);
-            button.press();
-            return { pressed: args.button_id, popup_after: needPopup().readPopup() };
+            const button = await invoke<import('./com-bridge.js').ComHandle>(session, 'findById', args.button_id);
+            await invoke(button, 'press');
+            return { pressed: args.button_id, popup_after: await needPopup().readPopup() };
           }),
         },
       ];
@@ -258,7 +261,7 @@ export function createGuiConnector(): SapConnector {
 
     async shutdown() {
       try {
-        client?.disconnect();
+        await client?.disconnect();
       } catch {
         // Already detached.
       }
