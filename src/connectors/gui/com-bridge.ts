@@ -77,14 +77,19 @@ export function comUnavailableReason(): string | null {
  * wrapper objects for COM values; the real value sits in `__value` (or is
  * produced by valueOf()). Recurses for nested wrappers.
  */
-export function unwrap(value: unknown): unknown {
+export function unwrap(value: unknown, seen = new Set<object>()): unknown {
   if (value === null || value === undefined) return value;
   if (typeof value !== 'object') return value;
+  if (seen.has(value)) return value; // cycle guard: never recurse on itself
+  seen.add(value);
   const com = value as ComObject;
   if ('__value' in com) {
     const v = com.__value;
     if (v === undefined || v === null) return v;
-    if (typeof v === 'object') return unwrap(v);
+    if (typeof v === 'object') {
+      if (v === value) return value;
+      return unwrap(v, seen);
+    }
     return v;
   }
   if (typeof com.valueOf === 'function') {
@@ -92,7 +97,7 @@ export function unwrap(value: unknown): unknown {
       const v = com.valueOf();
       if (v !== value) {
         if (v === null || typeof v !== 'object') return v;
-        return unwrap(v);
+        return unwrap(v, seen);
       }
     } catch {
       // valueOf raised: fall through to the raw object
