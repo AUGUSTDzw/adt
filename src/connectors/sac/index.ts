@@ -48,6 +48,14 @@ export function createSacConnector(): SacConnector {
       }
       const client = conn.client;
       return [
+        {
+          name: 'ping',
+          description: 'Returns pong — useful for verifying SAC connectivity',
+          inputSchema: {},
+          handler: async () => {
+            return { content: [{ type: 'text', text: 'pong' }] };
+          },
+        },
         calendarTool(client),
         contentTransportTool(client),
         contentTool(client),

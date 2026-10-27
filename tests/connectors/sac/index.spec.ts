@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createSacConnector } from '../../../src/connectors/sac/index.js';
 
-const EXPECTED = ['calendar', 'content-transport', 'content', 'data-export', 'data-import',
+const EXPECTED = ['ping', 'calendar', 'content-transport', 'content', 'data-export', 'data-import',
   'monitoring', 'multi-actions', 'schedule-publication', 'smart-query', 'translation', 'user-management'];
 
 describe('SAC connector', () => {
-  it('exposes all 11 SAC tools', async () => {
+  it('exposes all 12 SAC tools', async () => {
     const conn = createSacConnector();
     await conn.init({ url: 'https://sac.example.com', token: 'fake' });
     const names = conn.tools().map(t => t.name).sort();

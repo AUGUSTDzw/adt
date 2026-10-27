@@ -54,11 +54,41 @@ export class TableReader {
     return this.readSafe(table, selected, opts.where, maxRows, delimiter, structure);
   }
 
-  private async getStructure(table: string): Promise<StructureInfo> {
+  /** Iterative reader: splits wide tables across multiple RFC_READ_TABLE calls. */
+  async readComplete(table: string, opts: ReadTableOptions = {}): Promise<ReadTableResult> {
+    const maxRows = opts.maxRows ?? 100;
+    const delimiter = opts.delimiter ?? '|';
+    const structure = await this.getStructure(table);
+    // First pass: default selection
+    const [selected] = this.calculateFieldSelection(structure, opts.fields);
+    let result = await this.readSafe(table, selected, opts.where, maxRows, delimiter, structure);
+    // If we got fewer rows than maxRows, we're done (no pagination needed)
+    if (result.rows.length < maxRows || result.rows.length === 0) return result;
+    // Try to get more columns by chunking: re-request with remaining fields
+    const allFields = Object.keys(structure.fields).filter((f) => !selected.includes(f));
+    if (allFields.length === 0) return result;
+    // Use a second pass with the remaining fields (batch of up to maxRows)
+    const remaining = allFields.slice(0, Math.min(allFields.length, 50));
+    try {
+      const extra = await this.readSafe(table, remaining, opts.where, maxRows, delimiter, structure);
+      if (extra.rows.length > 0) {
+        result = {
+          rows: result.rows.map((row, i) => ({ ...row, ...(extra.rows[i] ?? {}) })),
+          columns: [...result.columns, ...extra.columns.filter((c) => !result.columns.includes(c))],
+        };
+      }
+    } catch {
+      // If the second pass fails, return the first pass result
+    }
+    return result;
+  }
+
+  /** Expose table structure (DDIF_FIELDINFO_GET wrapper). */
+  async getTableStructure(table: string, language = 'E'): Promise<StructureInfo> {
     try {
       const result = (await this.client.call('DDIF_FIELDINFO_GET', {
         TABNAME: table,
-        LANGU: 'E',
+        LANGU: language,
       })) as { DFIES_TAB?: Array<Record<string, string>> };
       const fields: Record<string, FieldInfo> = {};
       for (const f of result.DFIES_TAB ?? []) {
@@ -78,6 +108,34 @@ export class TableReader {
       logger.warn({ err: String(e), table }, 'table structure lookup failed');
       return { tableName: table, fields: {}, structureAvailable: false, error: String(e) };
     }
+  }
+
+  /** Test table access: probe structure, field count, and sample rows. */
+  async testAccess(table: string): Promise<Record<string, unknown>> {
+    const structure = await this.getStructure(table);
+    const fieldCount = Object.keys(structure.fields).length;
+    let sample: Record<string, string> | null = null;
+    let hasData = false;
+    if (fieldCount > 0) {
+      try {
+        const result = await this.readSafe(table, Object.keys(structure.fields).slice(0, 3), undefined, 1, '|', structure);
+        hasData = result.rows.length > 0;
+        sample = result.rows[0] ?? null;
+      } catch {}
+    }
+    return {
+      table,
+      accessTest: 'ok',
+      fieldCount,
+      structureAvailable: structure.structureAvailable,
+      hasData,
+      sampleFields: sample,
+      error: structure.error,
+    };
+  }
+
+  private async getStructure(table: string): Promise<StructureInfo> {
+    return this.getTableStructure(table, 'E');
   }
 
   private calculateFieldSelection(

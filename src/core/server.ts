@@ -5,19 +5,59 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { Registry } from './registry.js';
 import type { AppConfig } from './config.js';
 import { redact } from './utils/sensitive-redact.js';
+import { auditWrite } from './utils/audit.js';
 import { logger } from './utils/logger.js';
+
+/** Tools whose name indicates a write operation (audit + read-only gating). */
+const WRITE_TOOL_PATTERN = /^(write|create|delete|update|activate|release|implement|set|schedule|deploy|push|stage|publish|add|rename|extract|force|run|git_pull|git_create|git_unlink)/i;
+
+/** Result cache: TTL for read-only tools, invalidated on any write. */
+class ResultCache {
+  private entries = new Map<string, { value: unknown; expiresAt: number }>();
+  constructor(private ttlMs = 60_000) {}
+
+  get(key: string): unknown | undefined {
+    const hit = this.entries.get(key);
+    if (!hit) return undefined;
+    if (Date.now() > hit.expiresAt) {
+      this.entries.delete(key);
+      return undefined;
+    }
+    return hit.value;
+  }
+
+  set(key: string, value: unknown): void {
+    this.entries.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+  }
+
+  clear(): void {
+    this.entries.clear();
+  }
+}
 
 export function buildMcpServer(registry: Registry): McpServer {
   const server = new McpServer({ name: 'sap-mcp-unified', version: '0.1.0' });
+  const cache = new ResultCache();
 
   for (const t of registry.allTools()) {
+    const isWrite = WRITE_TOOL_PATTERN.test(t.name);
     server.tool(
       t.name,
       t.description,
       t.inputSchema,
       async (args, ctx) => {
+        const cacheKey = `${t.name}:${JSON.stringify(args ?? {})}`;
+        if (!isWrite) {
+          const hit = cache.get(cacheKey);
+          if (hit !== undefined) return hit as any;
+        } else {
+          auditWrite(t.name, args);
+          cache.clear();
+        }
         const res = await t.handler(args, ctx);
-        return redact(res) as any;
+        const redacted = redact(res);
+        if (!isWrite) cache.set(cacheKey, redacted);
+        return redacted as any;
       },
     );
   }

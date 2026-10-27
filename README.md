@@ -10,7 +10,7 @@ MCP transport, with every tool namespaced as `sap.<connector>.<tool>`:
 | --------- | ----------- | ------------------------------------------------------------- |
 | RFC       | `sap.rfc.*` | Call BAPIs/function modules, read tables, inspect metadata   |
 | SAC       | `sap.sac.*` | SAP Analytics Cloud stories, models, data export/import, etc. |
-| ADT       | `sap.adt.*` | 165 tools: source, objects, ATC, data, dumps, abapGit, debugger, traces, transports, refactoring, RAP, services, SAP Notes, jobs, CDS, versions, locks |
+| ADT       | `sap.adt.*` | 168 tools: source, objects, ATC, data, dumps, abapGit, debugger, traces, transports, refactoring, RAP, services, SAP Notes, jobs, CDS, versions, locks |
 
 ## Prerequisites
 
@@ -160,15 +160,21 @@ Ported from the Python `sap-rfc-mcp-server` reference.
 | ------------------ | ----------------------------------------------------------------- | -------------------------------------------- |
 | `call_function`   | `function`, `imports?`, `tables?`                                | Call an SAP RFC function module / BAPI       |
 | `read_table`      | `table`, `fields?`, `where?`, `maxRows?`                          | Read rows from an SAP table (RFC_READ_TABLE) |
+| `read_table_complete` | `table`, `fields?`, `where?`, `maxRows?`                      | Iterative multi-call reader for wide tables  |
 | `get_function_metadata` | `function`                                                  | Parameter metadata for an RFC function module |
+| `get_table_structure` | `table`, `language?`                                          | Get table structure via DDIF_FIELDINFO_GET   |
 | `search_functions` | `pattern`                                                        | Search RFC function modules by name pattern   |
+| `rfc_system_info`  | —                                                                | Get SAP system info (RFC_SYSTEM_INFO)         |
+| `test_table_access` | `table`                                                          | Probe table access: structure, field count    |
 
 ### SAC — `sap.sac.*`
 
 SAP Analytics Cloud. Each tool dispatches on an `operation` field (except
-`smart_query`, which takes direct query params). List operations accept standard
+`smart_query` and `ping`, which take direct params). List operations accept standard
 OData params (`$top`, `$skip`, `$filter`, `$orderby`, `$select`, `$expand`,
 `$count`); mutating operations require `allowalteration: true` as a safety guard.
+
+- **`ping`** (1 op) — returns `pong` for connectivity verification
 
 - **`calendar`** (3 ops) — `get_event`, `update_event`, `copy_event`
 - **`content`** (10 ops) — `stories_list`, `stories_copy`, `stories_rename`, `stories_delete`, `metadata_get`, `resources_list`, `resources_get`, `filerepository_list`, `repositories_list`, `widget_get_data`
@@ -184,11 +190,16 @@ OData params (`$top`, `$skip`, `$filter`, `$orderby`, `$select`, `$expand`,
 
 ### ADT — `sap.adt.*`
 
-ABAP Development Tools, wrapping `abap-adt-api` v8.5.0. **165 tools** — 49
+ABAP Development Tools, wrapping `abap-adt-api` v8.5.0. **168 tools** — 52
 hand-crafted tools with typed schemas (below) + 116 auto-generated tools that
 expose every remaining `ADTClient` method (debugger, traces, logpoints, RAP,
 refactoring, services, etc.). Each auto-generated tool accepts positional
 `args` and delegates to `ADTClient.<method>()`.
+
+**New in this pass:** source pagination (`firstLine`/`lastLine`/`onlyMethod`),
+file I/O (`outputFile`/`sourceFile`), partial-source guard, read-only mode,
+regex grep (`grep_source`), package-level ATC (`run_atc_package`), DDIC value
+help (`value_help`).
 
 **Authentication modes:**
 
@@ -240,12 +251,12 @@ When no token is provided, the server automatically:
 
 The `@mcp-abap-adt/auth-broker` package handles the OAuth2 authorization_code flow.
 
-**Hand-crafted tools (49):**
+**Hand-crafted tools (52):**
 
 | Tool                   | Parameters                                                                | Description                                                                          |
 | ---------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `read_source`          | `objectUrl`                                                              | Read ABAP source for an object                                                       |
-| `write_source`         | `objectUrl`, `content`                                                   | Write ABAP source (acquires/releases a lock)                                         |
+| `read_source`          | `objectUrl`, `firstLine?`, `lastLine?`, `onlyMethod?`, `outputFile?`     | Read ABAP source (pagination, method slice, file output)                             |
+| `write_source`         | `objectUrl`, `content?`, `sourceFile?`, `skipGuard?`                     | Write ABAP source (file input, partial-source guard)                                 |
 | `syntax_check`         | `objectUrl`, `mainUrl?`, `content?`, `mainProgram?`                      | Check ABAP syntax                                                                    |
 | `pretty_print`         | `source`                                                                 | Format ABAP source via SAP pretty printer                                            |
 | `revisions`            | `objectUrl`                                                              | List version history of an object                                                    |
@@ -261,12 +272,14 @@ The `@mcp-abap-adt/auth-broker` package handles the OAuth2 authorization_code fl
 | `run_class`            | `className`                                                             | Run an ABAP console class (IF_OO_ADT_CLASSRUN)                                        |
 | `run_unit_tests`       | `objectUrl`                                                              | Run ABAP Unit tests                                                                  |
 | `run_atc`              | `objectUrl`, `variant?`                                                  | Run ABAP Test Cockpit (`variant` defaults to `default`)                             |
+| `run_atc_package`      | `packageName`, `variant?`, `maxObjects?`                                 | Run ATC over an entire package (worklist flow)                                       |
 | `atc_worklists`        | —                                                                       | List ATC worklists                                                                   |
 | `atc_fix_proposals`    | `objectUrl`, `source`, `line`, `column`                                 | Get ATC quickfix proposals                                                           |
 | `table_contents`       | `ddicEntityName`, `rowNumber?`, `sqlQuery?`                              | Read table/CDS data via ADT Data Preview (no RFC SDK)                                |
 | `run_query`            | `sqlQuery`, `rowNumber?`                                                | Run OpenSQL SELECT via ADT Data Preview                                              |
 | `ddic_element`         | `path` (string or string[])                                             | Get DDIC element metadata                                                             |
 | `package_search_help`  | `type`, `name?`                                                          | F4-style value help for packages                                                     |
+| `value_help`           | `domain?`, `dataElement?`, `table?`, `field?`, `language?`, `maxRows?`   | Resolve DDIC value help (domain fixed values / check table)                          |
 | `list_dumps`           | `query?`                                                                | List ST22 short dumps                                                                |
 | `feeds`                | —                                                                       | List available ADT feeds                                                             |
 | `manage_transports`    | `action` (`add`/`release`/`import`), `transportId`, `objectUrl?`, `requestText?`, `devclass?` | `add` creates a transport; `release` releases it; `import` is STMS-only |
@@ -280,6 +293,7 @@ The `@mcp-abap-adt/auth-broker` package handles the OAuth2 authorization_code fl
 | `dump_details`         | `dumpId`, `startLine?`, `maxLines?`                                     | Read short dump trace by dump ID                                                     |
 | `system_info`          | `refresh?`                                                              | Get SAP system profile information                                                   |
 | `source_search`        | `searchString`, `packages?`, `objectTypes?`, `objectName?`, `maxResults?` | Full-text grep across ABAP repository                                            |
+| `grep_source`          | `pattern`, `packages?`, `transport?`, `objectUrls?`, `maxObjects?`, `maxMatches?`, `contextLines?` | JS regex search across ABAP sources                                |
 | `list_locks`           | `client?`, `user?`, `table?`                                            | List active ABAP locks (SM12 equivalent)                                             |
 | `get_note`             | `note`                                                                  | Get a SAP Note by ID                                                                 |
 | `check_note_status`    | `note`                                                                  | Check the implementation status of a SAP Note                                        |
@@ -293,6 +307,14 @@ The `@mcp-abap-adt/auth-broker` package handles the OAuth2 authorization_code fl
 | `object_diff`          | `objectUrl`, `fromVersion?`, `toVersion?`                               | Show unified diff between two versions of an object                                  |
 | `resolve_transport`    | `objectUrl`, `createIfMissing?`                                         | Resolve the best transport for an object                                             |
 | `force_unlock`         | `objectUrl`, `dropSession?`                                             | Force unlock an ABAP object                                                          |
+
+**Read-only mode:** Set `SAP_ADT_READONLY=true` to block all write operations
+(`write_source`, `activate`, `create_object`, `delete_object`, transports,
+notes, jobs, and auto-generated write methods). The tool returns `isError: true`
+with a message instead of reaching SAP.
+
+**Audit log:** Set `MCP_AUDIT_FILE=./audit.jsonl` to append a redacted JSONL
+record of every write operation (tool name, timestamp, redacted args).
 
 **Auto-generated tools (119)** — one per remaining `ADTClient` method. Naming
 convention: camelCase method → snake_case tool (e.g. `debuggerStep` →

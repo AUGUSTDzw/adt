@@ -91,6 +91,58 @@ export function createRfcConnector(): SapConnector {
             return { content: [{ type: 'json', json: result }] };
           },
         },
+        {
+          name: 'rfc_system_info',
+          description: 'Get SAP system information (version, kernel, host) via RFC_SYSTEM_INFO',
+          inputSchema: {},
+          handler: async () => {
+            const result = await client.call('RFC_SYSTEM_INFO', {});
+            return { content: [{ type: 'json', json: result }] };
+          },
+        },
+        {
+          name: 'get_table_structure',
+          description: 'Get table structure/field metadata via DDIF_FIELDINFO_GET',
+          inputSchema: {
+            table: z.string(),
+            language: z.string().optional(),
+          },
+          handler: async (a) => {
+            const args = a as { table: string; language?: string };
+            const result = await tables.getTableStructure(args.table, args.language ?? 'E');
+            return { content: [{ type: 'json', json: result }] };
+          },
+        },
+        {
+          name: 'test_table_access',
+          description: 'Probe table access: structure, field count, sample rows',
+          inputSchema: { table: z.string() },
+          handler: async (a) => {
+            const args = a as { table: string };
+            const result = await tables.testAccess(args.table);
+            return { content: [{ type: 'json', json: result }] };
+          },
+        },
+        {
+          name: 'read_table_complete',
+          description: 'Read wide tables via iterative multi-call RFC_READ_TABLE (merges results)',
+          inputSchema: {
+            table: z.string(),
+            fields: z.array(z.string()).optional(),
+            where: z.string().optional(),
+            maxRows: z.number().optional(),
+          },
+          handler: async (a) => {
+            const args = a as {
+              table: string;
+              fields?: string[];
+              where?: string;
+              maxRows?: number;
+            };
+            const result = await tables.readComplete(args.table, args);
+            return { content: [{ type: 'json', json: result }] };
+          },
+        },
       ];
     },
     async shutdown() {

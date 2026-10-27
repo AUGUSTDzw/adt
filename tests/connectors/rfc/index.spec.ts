@@ -2,10 +2,19 @@ import { describe, it, expect } from 'vitest';
 import { createRfcConnector } from '../../../src/connectors/rfc/index.js';
 
 describe('RFC connector', () => {
-  it('lists the four RFC tool names', () => {
+  it('lists the eight RFC tool names', () => {
     const conn = createRfcConnector();
     expect(conn.tools().map((t) => t.name).sort()).toEqual(
-      ['call_function', 'get_function_metadata', 'read_table', 'search_functions'],
+      [
+        'call_function',
+        'get_function_metadata',
+        'get_table_structure',
+        'read_table',
+        'read_table_complete',
+        'rfc_system_info',
+        'search_functions',
+        'test_table_access',
+      ].sort(),
     );
   });
 

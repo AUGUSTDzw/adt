@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { createAdtConnector } from '../../../src/connectors/adt/index.js';
 
 describe('ADT connector', () => {
-  it('registers 165 tools (49 hand-crafted + 116 auto-generated)', async () => {
+  it('registers 168 tools (52 hand-crafted + 116 auto-generated)', async () => {
     const conn = createAdtConnector();
     await conn.init({ baseUrl: 'https://s4.example.com', authMode: 'basic', user: 'U', pass: 'P' });
     const names = conn.tools().map(t => t.name).sort();
-    expect(names).toHaveLength(165);
+    expect(names).toHaveLength(168);
     // original hand-crafted tools
     expect(names).toContain('read_source');
     expect(names).toContain('run_atc');
@@ -30,6 +30,10 @@ describe('ADT connector', () => {
     expect(names).toContain('object_diff');
     expect(names).toContain('resolve_transport');
     expect(names).toContain('force_unlock');
+    // newest additions: grep_source, run_atc_package, value_help
+    expect(names).toContain('grep_source');
+    expect(names).toContain('run_atc_package');
+    expect(names).toContain('value_help');
     // auto-generated tools (from ADTClient prototype methods)
     expect(names).toContain('debugger_step');
     expect(names).toContain('debugger_set_breakpoints');
