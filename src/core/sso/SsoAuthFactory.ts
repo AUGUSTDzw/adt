@@ -13,26 +13,15 @@
 
 import {
   ClientCredentialsProvider,
-  OidcBrowserProvider,
-  OidcDeviceFlowProvider,
-  OidcPasswordProvider,
-  OidcTokenExchangeProvider,
-  Saml2BearerProvider,
   Saml2PureProvider,
-  UaaPasscodeProvider,
   createSignedAssertionValidator,
   defaultReplayStore,
   externalCodeStrategy,
-  manualPasscodeStrategy,
-  manualPasteStrategy,
   manualSamlResponseStrategy,
-  oidcCallbackStrategy,
   refreshThenLogin,
   samlCallbackStrategy,
-  type ShippedValidatorOptions,
 } from '@mcp-abap-adt/auth-providers';
 import type { ITokenProvider, IAuthorizationStrategy, IAssertionReplayStore } from '@mcp-abap-adt/interfaces-auth';
-import type { OidcCallbackResult } from '@mcp-abap-adt/auth-providers';
 import type { SsoAuthConfig, SsoAuthType, LoginStrategy } from './types.js';
 import { generateLogonTicket, decodeLogonTicket, formatDecodedTicket } from './sap-logon-ticket.js';
 import { acquireSpnegoToken, type SpnegoConfig } from './spnego.js';
@@ -68,30 +57,17 @@ function readFile(path: string): string {
 }
 
 function buildBrowserStrategy<T>(
-  type: SsoAuthConfig['type'],
   cfg: SsoAuthConfig,
   strategy: LoginStrategy,
 ): IAuthorizationStrategy<T> {
   const port = cfg.authBrokerPort ?? 61001;
+  const redirectUri = cfg.tokenEndpoint ?? `http://localhost:${port}/callback`;
   switch (strategy) {
-    case 'manual': {
-      if (type === 'saml2_pure' || type === 'saml2_bearer') {
-        return manualSamlResponseStrategy({
-          redirectUri: cfg.tokenEndpoint ?? `http://localhost:${port}/callback`,
-          signal: AbortSignal.timeout(300_000),
-        }) as unknown as IAuthorizationStrategy<T>;
-      }
-      if (type === 'passcode') {
-        return manualPasscodeStrategy({ signal: AbortSignal.timeout(300_000) }) as unknown as IAuthorizationStrategy<T>;
-      }
-      return manualPasteStrategy({
-        redirectUri: cfg.tokenEndpoint ?? `http://localhost:${port}/callback`,
-        signal: AbortSignal.timeout(300_000),
-      }) as unknown as IAuthorizationStrategy<T>;
-    }
-    case 'external': {
+    case 'manual':
+      return manualSamlResponseStrategy({ redirectUri, signal: AbortSignal.timeout(300_000) }) as unknown as IAuthorizationStrategy<T>;
+    case 'external':
       return externalCodeStrategy({
-        redirectUri: cfg.tokenEndpoint ?? `http://localhost:${port}/callback`,
+        redirectUri,
         provide: async () => {
           const code = cfg.accessToken;
           if (!code) throw new Error('external strategy requires accessToken (the authorization code)');
@@ -99,14 +75,9 @@ function buildBrowserStrategy<T>(
         },
         signal: AbortSignal.timeout(300_000),
       }) as unknown as IAuthorizationStrategy<T>;
-    }
     case 'browser':
-    default: {
-      if (type === 'saml2_pure' || type === 'saml2_bearer') {
-        return samlCallbackStrategy({ port, signal: AbortSignal.timeout(300_000) }) as unknown as IAuthorizationStrategy<T>;
-      }
-      return oidcCallbackStrategy({ port, signal: AbortSignal.timeout(300_000) }) as unknown as IAuthorizationStrategy<T>;
-    }
+    default:
+      return samlCallbackStrategy({ port, signal: AbortSignal.timeout(300_000) }) as unknown as IAuthorizationStrategy<T>;
   }
 }
 
@@ -141,119 +112,6 @@ function buildProvider(cfg: SsoAuthConfig): ITokenProvider {
       });
     }
 
-    case 'oidc_browser': {
-      if (!cfg.clientId) throw new Error('oidc_browser requires clientId');
-      if (strategy === 'browser') {
-        return OidcBrowserProvider.inBrowser({
-          issuerUrl: cfg.issuerUrl,
-          clientId: cfg.clientId,
-          clientSecret: cfg.clientSecret,
-          scopes: cfg.scopes,
-          authorizationEndpoint: cfg.authorizationEndpoint,
-          tokenEndpoint: cfg.tokenEndpoint,
-          accessToken: cfg.accessToken,
-          refreshToken: cfg.refreshToken,
-          expiresAt: cfg.expiresAt,
-          renewal,
-        });
-      }
-      return new OidcBrowserProvider({
-        issuerUrl: cfg.issuerUrl,
-        clientId: cfg.clientId,
-        clientSecret: cfg.clientSecret,
-        scopes: cfg.scopes,
-        authorizationEndpoint: cfg.authorizationEndpoint,
-        tokenEndpoint: cfg.tokenEndpoint,
-        accessToken: cfg.accessToken,
-        refreshToken: cfg.refreshToken,
-        expiresAt: cfg.expiresAt,
-        renewal,
-        authorization: buildBrowserStrategy<OidcCallbackResult>('oidc_browser', cfg, strategy),
-      });
-    }
-
-    case 'oidc_device': {
-      if (!cfg.clientId) throw new Error('oidc_device requires clientId');
-      return OidcDeviceFlowProvider.toConsole({
-        issuerUrl: cfg.issuerUrl,
-        clientId: cfg.clientId,
-        clientSecret: cfg.clientSecret,
-        scopes: cfg.scopes,
-        deviceAuthorizationEndpoint: cfg.deviceAuthorizationEndpoint,
-        tokenEndpoint: cfg.tokenEndpoint,
-        accessToken: cfg.accessToken,
-        refreshToken: cfg.refreshToken,
-        expiresAt: cfg.expiresAt,
-        renewal,
-      });
-    }
-
-    case 'oidc_password': {
-      if (!cfg.clientId) throw new Error('oidc_password requires clientId');
-      if (!cfg.username || !cfg.password) throw new Error('oidc_password requires username and password');
-      return new OidcPasswordProvider({
-        issuerUrl: cfg.issuerUrl,
-        clientId: cfg.clientId,
-        clientSecret: cfg.clientSecret,
-        username: cfg.username,
-        password: cfg.password,
-        scopes: cfg.scopes,
-        tokenEndpoint: cfg.tokenEndpoint,
-        accessToken: cfg.accessToken,
-        refreshToken: cfg.refreshToken,
-        expiresAt: cfg.expiresAt,
-        renewal,
-      });
-    }
-
-    case 'oidc_token_exchange': {
-      if (!cfg.clientId) throw new Error('oidc_token_exchange requires clientId');
-      if (!cfg.subjectToken || !cfg.subjectTokenType) {
-        throw new Error('oidc_token_exchange requires subjectToken and subjectTokenType');
-      }
-      return new OidcTokenExchangeProvider({
-        issuerUrl: cfg.issuerUrl,
-        clientId: cfg.clientId,
-        clientSecret: cfg.clientSecret,
-        subjectToken: cfg.subjectToken,
-        subjectTokenType: cfg.subjectTokenType,
-        scope: cfg.scopes?.join(' '),
-        audience: cfg.audience,
-        actorToken: cfg.actorToken,
-        actorTokenType: cfg.actorTokenType,
-        tokenEndpoint: cfg.tokenEndpoint,
-        accessToken: cfg.accessToken,
-        refreshToken: cfg.refreshToken,
-        expiresAt: cfg.expiresAt,
-        renewal,
-      });
-    }
-
-    case 'saml2_bearer': {
-      if (!cfg.clientId) throw new Error('saml2_bearer requires clientId');
-      const trust = buildSamlTrust(cfg);
-      const common = {
-        idpSsoUrl: cfg.authorizationEndpoint ?? cfg.issuerUrl ?? '',
-        spEntityId: cfg.clientId,
-        acsUrl: cfg.tokenEndpoint,
-        idpEntityId: cfg.issuerUrl,
-        logger: undefined,
-        renewal,
-      };
-      if (!common.idpSsoUrl) throw new Error('saml2_bearer requires idpSsoUrl (authorizationEndpoint)');
-      if (strategy === 'browser') {
-        return Saml2BearerProvider.inBrowser(common, trust);
-      }
-      return new Saml2BearerProvider({
-        ...common,
-        authorization: buildBrowserStrategy<string>('saml2_bearer', cfg, strategy),
-        assertionValidator: createSignedAssertionValidator(trust),
-        tokenUrl: cfg.tokenEndpoint,
-        uaaUrl: cfg.uaaUrl,
-        clientSecret: cfg.clientSecret,
-      });
-    }
-
     case 'saml2_pure': {
       const trust = buildSamlTrust(cfg);
       const common = {
@@ -271,23 +129,8 @@ function buildProvider(cfg: SsoAuthConfig): ITokenProvider {
       }
       return new Saml2PureProvider({
         ...common,
-        authorization: buildBrowserStrategy<string>('saml2_pure', cfg, strategy),
+        authorization: buildBrowserStrategy<string>(cfg, strategy),
         assertionValidator: createSignedAssertionValidator(trust),
-      });
-    }
-
-    case 'passcode': {
-      const uaaUrl = cfg.uaaUrl ?? cfg.issuerUrl;
-      if (!uaaUrl) throw new Error('passcode requires uaaUrl');
-      if (!cfg.clientId) throw new Error('passcode requires clientId');
-      return UaaPasscodeProvider.fromTerminal({
-        uaaUrl,
-        clientId: cfg.clientId,
-        clientSecret: cfg.clientSecret,
-        accessToken: cfg.accessToken,
-        refreshToken: cfg.refreshToken,
-        expiresAt: cfg.expiresAt,
-        renewal,
       });
     }
 

@@ -1,4 +1,4 @@
-import type { SapConnector, ToolRegistration, ResourceRegistration, PromptRegistration, ConnectorConfig } from './types.js';
+import type { SapConnector, ToolRegistration, ConnectorConfig } from './types.js';
 import { logger } from './utils/logger.js';
 
 export class Registry {
@@ -30,21 +30,4 @@ export class Registry {
     return out;
   }
 
-  allResources(): ResourceRegistration[] {
-    const out: ResourceRegistration[] = [];
-    for (const id of this.healthy) {
-      const conn = this.connectors.get(id)!;
-      if (conn.resources) for (const r of conn.resources()) out.push(r);
-    }
-    return out;
-  }
-
-  allPrompts(): PromptRegistration[] {
-    const out: PromptRegistration[] = [];
-    for (const id of this.healthy) {
-      const conn = this.connectors.get(id)!;
-      if (conn.prompts) for (const p of conn.prompts()) out.push(p);
-    }
-    return out;
-  }
 }

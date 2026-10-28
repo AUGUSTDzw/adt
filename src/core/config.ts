@@ -1,7 +1,4 @@
-import { config as loadDotenv } from 'dotenv';
 import type { ConnectorConfig } from './types.js';
-
-loadDotenv();
 
 export interface AppConfig {
   enabled: string[];

@@ -16,25 +16,9 @@ export interface ToolRegistration {
   write?: boolean;
 }
 
-export interface ResourceRegistration {
-  uri: string;                  // template, e.g. "sap://sac/stories"
-  name: string;
-  description?: string;
-  read: (uri: string) => Promise<ToolResult>;
-}
-
-export interface PromptRegistration {
-  name: string;
-  description?: string;
-  args?: ZodRawShape;
-  render: (args: unknown) => Promise<ToolResult>;
-}
-
 export interface SapConnector {
   id: string;                                  // connector namespace segment
   init(config: ConnectorConfig): Promise<void>;
   tools(): ToolRegistration[];
-  resources?(): ResourceRegistration[];
-  prompts?(): PromptRegistration[];
   shutdown?(): Promise<void>;
 }

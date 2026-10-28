@@ -61,12 +61,6 @@ export function buildMcpServer(registry: Registry): McpServer {
       },
     );
   }
-  for (const r of registry.allResources()) {
-    server.resource(r.name, r.uri, async (uri) => redact(await r.read(String(uri))) as any);
-  }
-  for (const p of registry.allPrompts()) {
-    server.prompt(p.name, p.args ?? {}, async (args) => redact(await p.render(args)) as any);
-  }
   return server;
 }
 

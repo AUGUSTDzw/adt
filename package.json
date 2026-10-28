@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
+    "dev": "node --env-file=.env --import tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -21,8 +21,6 @@
     "@mcp-abap-adt/auth-providers": "^6.0.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "abap-adt-api": "^8.4.3",
-    "dotenv": "^16.4.5",
-    "pino": "^9.3.2",
     "zod": "^3.23.8"
   },
   "optionalDependencies": {

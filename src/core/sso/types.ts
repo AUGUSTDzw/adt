@@ -17,15 +17,8 @@
  */
 
 export type SsoAuthType =
-  | 'basic'
   | 'client_credentials'
-  | 'oidc_browser'
-  | 'oidc_device'
-  | 'oidc_password'
-  | 'oidc_token_exchange'
-  | 'saml2_bearer'
   | 'saml2_pure'
-  | 'passcode'
   | 'token'
   | 'sso2' // MYSAPSSO2 logon ticket
   | 'spnego'; // Kerberos

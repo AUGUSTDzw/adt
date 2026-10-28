@@ -247,10 +247,10 @@ export function createAdtConnector(): AdtConnector {
         { name: 'user_transports', description: 'List transports for a user', inputSchema: { user: s },
           handler: async (a) => ({ content: [{ type: 'json', json: await client.userTransports((a as any).user) }] }) },
         // ─── abapGit ───────────────────────────────────────────────────────
-        { name: 'git_repos', description: 'List ababGit repositories in the SAP system', inputSchema: {},
+        { name: 'git_repos', description: 'List abapGit repositories in the SAP system', inputSchema: {},
           handler: async () => ({ content: [{ type: 'json', json: await client.gitRepos() }] }) },
-        { name: 'git_pull', description: 'Pull an ababGit repository', inputSchema: { repoId: s, branch: s.optional(), transport: s.optional(), user: s.optional(), password: s.optional() },
-          handler: async (a) => ({ content: [{ type: 'text', text: `pulled ${(a as any).repoId}` }] }) },
+        { name: 'git_pull', description: 'Pull an abapGit repository', inputSchema: { repoId: s, branch: s.optional(), transport: s.optional(), user: s.optional(), password: s.optional() },
+          handler: async (a) => ({ content: [{ type: 'json', json: await client.gitPull((a as any).repoId, (a as any).branch, (a as any).transport, (a as any).user, (a as any).password) }] }) },
         // ─── Refactoring ──────────────────────────────────────────────────
         { name: 'rename_preview', description: 'Preview a rename refactoring', inputSchema: { objectUrl: objUrl, line: n, startCol: n, endCol: n },
           handler: async (a) => ({ content: [{ type: 'json', json: await client.renameEvaluate((a as any).objectUrl, (a as any).line, (a as any).startCol, (a as any).endCol) }] }) },

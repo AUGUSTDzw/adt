@@ -219,19 +219,13 @@ ABAP Development Tools，封装 `abap-adt-api` v8.5.0。**168 个工具** ——
 
 | `SAP_ADT_SSO_TYPE`    | 授权机制                        | 所需配置                                                   |
 | --------------------- | ------------------------------- | ---------------------------------------------------------- |
-| `oidc_browser`        | OIDC 授权码 + PKCE（浏览器）    | `SAP_ADT_CLIENT_ID`, `SAP_ADT_ISSUER_URL`                  |
-| `oidc_device`         | OIDC device_code（无头模式）    | `SAP_ADT_CLIENT_ID`, `SAP_ADT_ISSUER_URL`                  |
-| `oidc_password`       | OIDC 密码授权                   | `SAP_ADT_CLIENT_ID`, `SAP_ADT_USERNAME`, `SAP_ADT_PASSWORD`|
-| `oidc_token_exchange` | OAuth2 token 交换               | `SAP_ADT_CLIENT_ID`, `SAP_ADT_SUBJECT_TOKEN`, `SAP_ADT_SUBJECT_TOKEN_TYPE` |
-| `saml2_bearer`        | SAML2 Bearer 断言               | `SAP_ADT_CLIENT_ID`, `SAP_ADT_SAML_TRUST`, `SAP_ADT_AUTHORIZATION_ENDPOINT` |
 | `saml2_pure`          | SAML2 纯模式（会话 cookie）     | `SAP_ADT_SAML_TRUST`, `SAP_ADT_AUTHORIZATION_ENDPOINT`     |
-| `passcode`            | UAA/XSUAA 一次性密码            | `SAP_ADT_UAA_URL`, `SAP_ADT_CLIENT_ID`                     |
 | `client_credentials`  | OAuth2 client_credentials       | `SAP_ADT_UAA_URL`/`ISSUER_URL`, `SAP_ADT_CLIENT_ID`, `SAP_ADT_CLIENT_SECRET` |
 | `token`               | 预置 token                      | `SAP_ADT_ACCESS_TOKEN`                                     |
 | `sso2`                | MYSAPSSO2 登录票据              | `SAP_ADT_PSE_CERT`, `SAP_ADT_PSE_KEY`, `SAP_ADT_SSO_CLIENT`, `SAP_ADT_SSO_SYSTEM` |
 | `spnego`              | Kerberos SPNEGO                 | `SAP_ADT_KERBEROS_SERVICE`；自动 `kinit` 需 `SAP_ADT_KERBEROS_KEYTAB` + `SAP_ADT_KERBEROS_PRINCIPAL` |
 
-`SAP_ADT_STRATEGY=browser|manual|external` 选择浏览器/SAML/密码流程的交互式
+`SAP_ADT_STRATEGY=browser|manual|external` 选择 saml2_pure 的交互式
 登录机制（默认 `browser` —— 在 `SAP_ADT_AUTH_BROKER_PORT` 上开启本地回调）。
 
 **MYSAPSSO2（`sso2`）：** 生成由系统 PSE（DSA 密钥）签名的 SAP 登录票据。

@@ -281,7 +281,6 @@ export class AdtClient {
       this.ssoFailCount = 0;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // eslint-disable-next-line no-console
       console.error(`[sap-mcp] SSO renewal failed (${current.type}): ${msg}`);
       this.ssoFailCount++;
       if (this.ssoFailCount >= AdtClient.SSO_FAIL_THRESHOLD) {
@@ -291,10 +290,8 @@ export class AdtClient {
           try {
             await this.applySsoResult(this.ssoChain.current);
             this.rebuildAdt();
-            // eslint-disable-next-line no-console
             console.error(`[sap-mcp] SSO switched to ${this.ssoChain.current.type}`);
           } catch (switchErr) {
-            // eslint-disable-next-line no-console
             console.error(`[sap-mcp] SSO switch failed: ${String(switchErr)}`);
           }
         }
@@ -429,20 +426,8 @@ export class AdtClient {
     return this.adtClient.runClass(className);
   }
 
-  async objectTypes(): Promise<unknown> {
-    return this.adtClient.objectTypes();
-  }
-
   async nodeContents(parentType: string, parentName?: string, userName?: string): Promise<unknown> {
     return this.adtClient.nodeContents(parentType as never, parentName, userName);
-  }
-
-  async mainPrograms(includeUrl: string): Promise<unknown> {
-    return this.adtClient.mainPrograms(includeUrl);
-  }
-
-  async systemUsers(): Promise<unknown> {
-    return this.adtClient.systemUsers();
   }
 
   // ─── ATC (extended) ───────────────────────────────────────────────────────
@@ -453,10 +438,6 @@ export class AdtClient {
 
   async atcFixProposals(objectUrl: string, source: string, line: number, column: number): Promise<unknown> {
     return this.adtClient.fixProposals(objectUrl, source, line, column);
-  }
-
-  async atcCustomizing(): Promise<unknown> {
-    return (this.adtClient as any).atcCustomizing();
   }
 
   // ─── Data access ──────────────────────────────────────────────────────────
@@ -497,14 +478,6 @@ export class AdtClient {
     return this.adtClient.gitPullRepo(repoId, branch, transport, user, password);
   }
 
-  async gitCreate(packageName: string, repoUrl: string, branch?: string, transport?: string, user?: string, password?: string): Promise<unknown> {
-    return this.adtClient.gitCreateRepo(packageName, repoUrl, branch, transport, user, password);
-  }
-
-  async gitUnlink(repoId: string): Promise<void> {
-    return this.adtClient.gitUnlinkRepo(repoId);
-  }
-
   // ─── Transports (extended) ────────────────────────────────────────────────
 
   async transportDetails(transportNumber: string): Promise<unknown> {
@@ -513,10 +486,6 @@ export class AdtClient {
 
   async userTransports(user: string): Promise<unknown> {
     return this.adtClient.userTransports(user, true);
-  }
-
-  async transportDelete(transportNumber: string): Promise<void> {
-    return this.adtClient.transportDelete(transportNumber);
   }
 
   // ─── Refactoring ──────────────────────────────────────────────────────────
@@ -533,36 +502,6 @@ export class AdtClient {
 
   async rapGenPreview(content: Record<string, unknown>): Promise<unknown> {
     return (this.adtClient as any).rapGenPreview(content);
-  }
-
-  async rapGenGenerate(content: Record<string, unknown>): Promise<unknown> {
-    return (this.adtClient as any).rapGenGenerate(content);
-  }
-
-  // ─── Services ─────────────────────────────────────────────────────────────
-
-  async fetchServiceDetails(serviceUrl: string): Promise<unknown> {
-    return (this.adtClient as any).bindingDetails(serviceUrl);
-  }
-
-  // ─── Discovery ────────────────────────────────────────────────────────────
-
-  async adtDiscovery(): Promise<unknown> {
-    return this.adtClient.adtDiscovery();
-  }
-
-  async featureDetails(title: string): Promise<unknown> {
-    return this.adtClient.featureDetails(title);
-  }
-
-  // ─── Text elements ────────────────────────────────────────────────────────
-
-  async getTextElements(objectUrl: string): Promise<unknown> {
-    return this.adtClient.getTextElements(objectUrl);
-  }
-
-  async setTextElements(objectUrl: string, elements: unknown): Promise<unknown> {
-    return (this.adtClient as any).setTextElements(objectUrl, elements);
   }
 
   // ─── Escape hatch ─────────────────────────────────────────────────────────

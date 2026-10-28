@@ -37,7 +37,6 @@ function loadKerberos(): KerberosModule | null {
   if (kerberosCache !== undefined) return kerberosCache;
   try {
     // Dynamic require — optional dependency.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('kerberos') as KerberosModule;
     kerberosCache = mod;
   } catch {

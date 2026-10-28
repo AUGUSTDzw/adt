@@ -139,7 +139,7 @@ describe('SsoAuthFactory', () => {
 
   describe('validation', () => {
     it('throws for unsupported type', () => {
-      expect(() => createSsoAuth({ type: 'basic' })).toThrow();
+      expect(() => createSsoAuth({ type: 'nonsense' as any })).toThrow(/Unsupported SSO type/);
     });
   });
 });
