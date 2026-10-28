@@ -146,27 +146,15 @@ export class AdtClient {
       const v = str(k);
       return v !== undefined ? Number(v) : undefined;
     };
-    const arr = (k: string): string[] | undefined => {
-      const v = str(k);
-      return v ? v.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
-    };
 
     return {
       type: ssoType,
       issuerUrl: str('issuerUrl'),
       authorizationEndpoint: str('authorizationEndpoint'),
       tokenEndpoint: str('tokenEndpoint'),
-      deviceAuthorizationEndpoint: str('deviceAuthorizationEndpoint'),
       clientId: str('clientId'),
       clientSecret: str('clientSecret'),
-      scopes: arr('scopes'),
       username: str('username'),
-      password: str('password'),
-      subjectToken: str('subjectToken'),
-      subjectTokenType: str('subjectTokenType'),
-      audience: str('audience'),
-      actorToken: str('actorToken'),
-      actorTokenType: str('actorTokenType'),
       samlTrust: str('samlTrust'),
       uaaUrl: str('uaaUrl'),
       pseCert: str('pseCert'),
@@ -177,8 +165,6 @@ export class AdtClient {
       ssoDurationHours: num('ssoDurationHours'),
       ssoCodepage: (str('ssoCodepage') as '4103' | '4102') ?? '4103',
       accessToken: str('accessToken'),
-      refreshToken: str('refreshToken'),
-      expiresAt: num('expiresAt'),
       strategy: (str('strategy') as SsoAuthConfig['strategy']) ?? 'browser',
       authBrokerPort: num('authBrokerPort') ?? 61001,
       destination: str('destination') ?? this.destination,

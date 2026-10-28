@@ -2,9 +2,7 @@
  * SSO authentication types for the unified SAP MCP server.
  *
  * Supports every SSO flavour found in the reference projects:
- *  - OIDC / OAuth2 (browser code+PKCE, device code, password, token exchange)
- *  - SAML 2.0 (bearer / pure)
- *  - UAA / XSUAA passcode
+ *  - SAML 2.0 (pure / session cookies)
  *  - client_credentials (XSUAA service keys)
  *  - MYSAPSSO2 logon ticket (`sso2`)
  *  - SPNEGO / Kerberos (`spnego`)
@@ -26,7 +24,6 @@ export type SsoAuthType =
 /** How an interactive login hands the authorization to the user. */
 export type LoginStrategy =
   | 'browser' // open system browser, callback on localhost
-  | 'device' // device_code flow
   | 'manual' // paste code / SAML response into terminal
   | 'external'; // external flow, no local callback
 
@@ -34,35 +31,23 @@ export interface SsoAuthConfig {
   /** The SSO flavour. */
   type: SsoAuthType;
 
-  // ── OAuth2 / OIDC common ────────────────────────────────────────────────
-  /** Authorization server issuer URL (for OIDC discovery). */
+  // ── OAuth2 / SAML endpoints ─────────────────────────────────────────────
+  /** Authorization server issuer URL. */
   issuerUrl?: string;
   /** Override the authorization endpoint when discovery is unavailable. */
   authorizationEndpoint?: string;
   /** Override the token endpoint when discovery is unavailable. */
   tokenEndpoint?: string;
-  /** Device authorization endpoint (device_code flow). */
-  deviceAuthorizationEndpoint?: string;
   clientId?: string;
   clientSecret?: string;
-  scopes?: string[];
-
-  // ── password grant ───────────────────────────────────────────────────────
+  /** Username fallback (sso2 uses `ssoUser ?? username`). */
   username?: string;
-  password?: string;
-
-  // ── token exchange ───────────────────────────────────────────────────────
-  subjectToken?: string;
-  subjectTokenType?: string;
-  audience?: string;
-  actorToken?: string;
-  actorTokenType?: string;
 
   // ── SAML 2.0 ─────────────────────────────────────────────────────────────
   /** Path to a CA bundle PEM used to verify the IdP's SAML assertions. */
   samlTrust?: string;
 
-  // ── UAA / XSUAA passcode ─────────────────────────────────────────────────
+  // ── UAA / XSUAA (client_credentials) ─────────────────────────────────────
   /** UAA / XSUAA base URL (e.g. `https://<sub>.authentication.<region>.ondemand.com`). */
   uaaUrl?: string;
 
@@ -82,14 +67,12 @@ export interface SsoAuthConfig {
   /** Codepage: `4103` UTF-16LE (default) or `4102` UTF-16BE. */
   ssoCodepage?: '4103' | '4102';
 
-  // ── pre-provisioned tokens ───────────────────────────────────────────────
+  // ── tokens ───────────────────────────────────────────────────────────────
+  /** Pre-provisioned access token (`token` type / external strategy code). */
   accessToken?: string;
-  refreshToken?: string;
-  /** Epoch ms when `accessToken` expires (for opaque tokens without `exp`). */
-  expiresAt?: number;
 
   // ── interaction ──────────────────────────────────────────────────────────
-  /** How the user authorizes: browser, device, manual, external. */
+  /** How the user authorizes: browser, manual, external. */
   strategy?: LoginStrategy;
   /** Local callback port for browser login. Default 61001. */
   authBrokerPort?: number;

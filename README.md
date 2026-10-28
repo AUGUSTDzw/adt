@@ -259,12 +259,10 @@ Windows domain service accounts (the LSA manages the TGT).
 | `sso2` | local sign | auto | PSE key file |
 | `spnego` | auto `kinit` / LSA | auto | keytab or Windows domain account |
 | `client_credentials` | auto token | provider refresh | client secret |
-| `oidc_token_exchange` | auto exchange | provider refresh | subject token |
 | RFC SNC | SAP transport layer | SAP library | `SAP_RFC_SNC_MODE=1` |
 | GUI `connect_existing` | attach | none | requires an already-logged-on GUI |
 
-Interactive flows (`oidc_browser`, `oidc_device`, `saml2_*`, `passcode`) need
-human consent by protocol design.
+Interactive flows (`saml2_pure`) need human consent by protocol design.
 
 **Full MCP configuration (unattended SSO with automatic fallback):**
 

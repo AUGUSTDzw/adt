@@ -250,12 +250,10 @@ Windows 域服务账户上两者都省略（LSA 自动管理 TGT）。
 | `sso2`                 | 本地签名          | 自动              | PSE 密钥文件                  |
 | `spnego`               | 自动 `kinit`/LSA  | 自动              | keytab 或 Windows 域账户      |
 | `client_credentials`   | 自动获取 token    | 提供方刷新        | client secret                 |
-| `oidc_token_exchange`  | 自动交换          | 提供方刷新        | subject token                 |
 | RFC SNC                | SAP 传输层        | SAP 库            | `SAP_RFC_SNC_MODE=1`          |
 | GUI `connect_existing` | 附着              | 无                | 需已登录的 GUI                |
 
-交互式流程（`oidc_browser`、`oidc_device`、`saml2_*`、`passcode`）按协议设计
-需要人工确认。
+交互式流程（`saml2_pure`）按协议设计需要人工确认。
 
 **完整 MCP 配置（无人值守 SSO + 自动回退）：**
 
