@@ -1,127 +1,28 @@
 /**
- * PowerShell COM bridge — a long-lived `pwsh -STA` process that speaks
- * JSON-RPC over stdio and performs COM automation on behalf of the gui
- * connector. This is the zero-native-dependency fallback when `winax` cannot
- * be built (no build tools): Windows ships PowerShell, so the sap.gui
- * connector still works.
+ * COM bridge — a long-lived `cscript` VBScript daemon that speaks JSON-RPC
+ * over stdio and performs COM automation on behalf of the gui connector. This
+ * is the zero-native-dependency fallback when `winax` cannot be built (no
+ * build tools): Windows ships cscript/WScript, so the sap.gui connector still
+ * works.
  *
  * The daemon keeps a registry of COM objects (id → object) so a session bound
  * in one tool call stays alive for the next. Every request is answered with
  * one JSON line; COM object values are encoded as `{ "$com": <id> }` refs and
- * decoded back on the PowerShell side.
+ * decoded back on the cscript side.
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface, type Interface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import type { ComApi, ComHandle, ComObjectOptions } from './com-bridge.js';
 
-const DAEMON_SCRIPT = String.raw`
-$ErrorActionPreference = 'Stop'
-$script:objs = @{}
-$script:nextId = 1
-
-# NOTE (PowerShell semantics): a function RETURN value is enumerated when it
-# is IEnumerable — a single COM collection becomes Object[] at the call site,
-# and Write-Output -NoEnumerate does NOT survive the function boundary. So
-# COM objects must never be returned from a function. Encode-Value only
-# returns data (primitive / hashtable ref / array of data), and its COM
-# argument is bound as a *parameter*, which PowerShell does not enumerate.
-# Everywhere else we dereference $script:objs inline.
-function Register-ComObject($o) {
-  $id = $script:nextId++
-  $script:objs[$id] = $o
-  return @{ '$com' = $id }
-}
-function Encode-Value($v) {
-  if ($null -eq $v) { return $null }
-  # Detect the RCW by type name: the "-is [System.__ComObject]" test can
-  # fail for PSObject-wrapped COM values, but FullName never lies.
-  if ($v.GetType().FullName -eq 'System.__ComObject') { return Register-ComObject $v }
-  if ($v -is [string] -or $v -is [bool] -or $v -is [int] -or $v -is [long] -or $v -is [double] -or $v -is [decimal] -or $v -is [datetime]) { return $v }
-  if ($v -is [System.Collections.IEnumerable]) {
-    $list = @()
-    foreach ($item in $v) { $list += ,(Encode-Value $item) }
-    return ,$list
-  }
-  return $v
-}
-
-while ($null -ne ($line = [Console]::In.ReadLine())) {
-  $req = $null
-  try { $req = $line | ConvertFrom-Json -AsHashtable } catch { continue }
-  $id = $req.id
-  try {
-    switch ($req.op) {
-      'getObject' {
-        $name = [string]$req.name
-        $opt = $req.options
-        if ($null -ne $opt -and $opt.getobject) {
-          $o = [System.Runtime.InteropServices.Marshal]::BindToMoniker($name)
-        } elseif ($null -ne $opt -and $opt.activate) {
-          $o = [System.Runtime.InteropServices.Marshal]::GetActiveObject($name)
-        } else {
-          $o = New-Object -ComObject $name
-        }
-        $out = Encode-Value $o
-      }
-      'getProp' {
-        $o = $script:objs[[int]$req.ref.'$com']
-        # PSObject.Properties resolves via IDispatch, case-insensitively.
-        # Bind to a variable first: member-expression arguments to a function
-        # are enumerated, but variable arguments are not.
-        $p = $o.PSObject.Properties[[string]$req.name]
-        if ($null -ne $p) { $raw = $p.Value }
-        else { $raw = $o.$($req.name) }
-        $out = Encode-Value $raw
-      }
-      'setProp' {
-        $o = $script:objs[[int]$req.ref.'$com']
-        $val = $req.value
-        if ($null -ne $val -and $val -is [hashtable] -and $val.ContainsKey('$com')) {
-          $val = $script:objs[[int]$val.'$com']
-        }
-        $o.$($req.name) = $val
-        $out = $null
-      }
-      'call' {
-        $o = $script:objs[[int]$req.ref.'$com']
-        $args = [object[]]@()
-        if ($null -ne $req.args -and $req.args.Count -gt 0) {
-          $decoded = @()
-          foreach ($a in $req.args) {
-            if ($null -ne $a -and $a -is [hashtable] -and $a.ContainsKey('$com')) {
-              $decoded += ,$script:objs[[int]$a.'$com']
-            } else {
-              $decoded += ,$a
-            }
-          }
-          $args = [object[]]$decoded
-        }
-        # PSMethod.Invoke handles both plain methods and indexer-style
-        # default properties (GuiComponentCollection.Item(i)) via IDispatch.
-        $ret = $null
-        try {
-          $m = $o.PSObject.Methods[[string]$req.method]
-          if ($null -ne $m) { $ret = $m.Invoke($args) }
-          else { $ret = & $o.$($req.method) @args }
-        } catch {
-          $ret = $o.GetType().InvokeMember([string]$req.method, [System.Reflection.BindingFlags]::InvokeMethod, $null, $o, $args)
-        }
-        $out = Encode-Value $ret
-      }
-      'release' {
-        [void]$script:objs.Remove([int]$req.ref.'$com')
-        $out = $null
-      }
-      default { throw "unknown op: $($req.op)" }
-    }
-    $resp = @{ id = $id; ok = $true; value = $out }
-  } catch {
-    $resp = @{ id = $id; ok = $false; error = "$($_.Exception.Message)" }
-  }
-  [Console]::Out.WriteLine(($resp | ConvertTo-Json -Depth 30 -Compress))
-}
-`;
+// VBScript JSON-RPC daemon (tests/sapgui_vbs_daemon.vbs). Resolved relative to
+// this module so it works from both source (ts) and built (dist) trees.
+const DAEMON_SCRIPT_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../tests/sapgui_vbs_daemon.vbs',
+);
 
 const RPC_TIMEOUT_MS = 60_000;
 
@@ -183,17 +84,19 @@ class PowershellComApi implements ComApi {
 
   private ensureDaemon(): ChildProcessWithoutNullStreams {
     if (this.child && !this.child.killed) return this.child;
-    const child = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-STA', '-Command', DAEMON_SCRIPT], {
+    // The VBScript daemon (cscript) implements the same JSON-RPC wire protocol
+    // as the former PowerShell daemon but avoids PowerShell COM quirks.
+    const child = spawn('cscript', ['//nologo', DAEMON_SCRIPT_PATH], {
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     const rl = createInterface({ input: child.stdout });
     rl.on('line', (line) => this.onLine(line));
     child.on('error', (err) => this.onFatal(err));
-    child.on('exit', () => this.onFatal(new Error('PowerShell COM daemon exited')));
+    child.on('exit', () => this.onFatal(new Error('VBScript COM daemon exited')));
     child.stderr.on('data', (chunk: Buffer) => {
       // Diagnostics only; errors are reported per-request.
-      process.stderr.write(`[sap.gui pwsh] ${chunk.toString().trimEnd()}\n`);
+      process.stderr.write(`[sap.gui vbs] ${chunk.toString().trimEnd()}\n`);
     });
     this.child = child;
     this.rl = rl;
