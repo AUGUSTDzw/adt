@@ -11,6 +11,29 @@ import { logger } from './utils/logger.js';
 /** Tools whose name indicates a write operation (audit + read-only gating). */
 const WRITE_TOOL_PATTERN = /^(write|create|delete|update|activate|release|implement|set|schedule|deploy|push|stage|publish|add|rename|extract|force|run|git_pull|git_create|git_unlink)/i;
 
+/**
+ * Normalize a ToolResult into a standards-compliant MCP CallToolResult.
+ *
+ * The connector layer may emit non-standard `{ type: 'json', json }` content
+ * blocks (see `ToolResult` in core/types.ts). The MCP protocol only defines
+ * `text`, `image`, `audio`, `resource_link` and `resource` content blocks, so
+ * strict clients reject `json`. Here we convert any `type: 'json'` block to a
+ * `type: 'text'` block containing the pretty-printed JSON, keeping the result
+ * readable by all MCP clients.
+ */
+export function normalizeResult(result: unknown): unknown {
+  if (!result || typeof result !== 'object' || !Array.isArray((result as { content?: unknown }).content)) {
+    return result;
+  }
+  const content = (result as { content: Array<{ type: string; [k: string]: unknown }> }).content.map((c) => {
+    if (c && typeof c === 'object' && c.type === 'json') {
+      return { type: 'text' as const, text: JSON.stringify(c.json ?? null, null, 2) };
+    }
+    return c;
+  });
+  return { ...(result as Record<string, unknown>), content };
+}
+
 /** Result cache: TTL for read-only tools, invalidated on any write. */
 class ResultCache {
   private entries = new Map<string, { value: unknown; expiresAt: number }>();
@@ -56,8 +79,9 @@ export function buildMcpServer(registry: Registry): McpServer {
         }
         const res = await t.handler(args, ctx);
         const redacted = redact(res);
-        if (!isWrite) cache.set(cacheKey, redacted);
-        return redacted as any;
+        const normalized = normalizeResult(redacted);
+        if (!isWrite) cache.set(cacheKey, normalized);
+        return normalized as any;
       },
     );
   }

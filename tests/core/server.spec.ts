@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMcpServer } from '../../src/core/server.js';
+import { buildMcpServer, normalizeResult } from '../../src/core/server.js';
 import { Registry } from '../../src/core/registry.js';
 import type { SapConnector } from '../../src/core/types.js';
 import { z } from 'zod';
@@ -28,5 +28,39 @@ describe('buildMcpServer', () => {
     expect(res.content.length).toBeGreaterThan(0);
     // buildMcpServer returned a usable server instance without throwing.
     expect(srv).toBeDefined();
+  });
+});
+
+describe('normalizeResult', () => {
+  it('converts non-standard json content blocks to standard text content', () => {
+    const result = normalizeResult({
+      content: [{ type: 'json', json: { hello: 'world', n: 42 } }],
+    }) as { content: Array<{ type: string; text?: string; json?: unknown }> };
+
+    expect(result.content).toHaveLength(1);
+    expect(result.content[0].type).toBe('text');
+    expect(JSON.parse(result.content[0].text!)).toEqual({ hello: 'world', n: 42 });
+  });
+
+  it('leaves standard text content untouched', () => {
+    const result = normalizeResult({
+      content: [{ type: 'text', text: 'plain text' }],
+    }) as { content: Array<{ type: string; text?: string }> };
+
+    expect(result.content).toEqual([{ type: 'text', text: 'plain text' }]);
+  });
+
+  it('passes through results without a content array unchanged', () => {
+    const input = { foo: 'bar' };
+    expect(normalizeResult(input)).toBe(input);
+  });
+
+  it('converts a null json payload to a readable null literal', () => {
+    const result = normalizeResult({
+      content: [{ type: 'json', json: null }],
+    }) as { content: Array<{ type: string; text?: string }> };
+
+    expect(result.content[0].type).toBe('text');
+    expect(result.content[0].text).toBe('null');
   });
 });
